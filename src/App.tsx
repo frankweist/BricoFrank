@@ -1,26 +1,34 @@
-﻿import { useState } from 'react'
-import { Layout } from './modules/app/Layout'
-import { Registro } from './modules/registro/Registro'
-import { Presupuesto } from './modules/presupuesto/Presupuesto'
-import { DetalleOrden } from './modules/reparacion/DetalleOrden'
-import { Ordenes } from './modules/ordenes/Ordenes'
+﻿import React, { useState } from "react"
+import { Layout } from "./modules/app/Layout"
+import { Registro } from "./modules/registro/Registro"
+import { Ordenes } from "./modules/ordenes/Ordenes"
+import { Presupuesto } from "./modules/presupuesto/Presupuesto"
+import { DetalleOrden } from "./modules/reparacion/DetalleOrden"
 
-export type Tab = 'registro'|'ordenes'|'presupuesto'|'reparacion'
+export type Tab = "registro"|"ordenes"|"presupuesto"|"reparacion"
 
 export default function App(){
-  const [tab, setTab] = useState<Tab>('registro')
-
-  function openOrden(id:string){
-    sessionStorage.setItem('ordenActual', id)
-    setTab('reparacion')
-  }
+  const [tab,setTab] = useState<Tab>("ordenes")
+  const [selId,setSelId] = useState<string|undefined>(undefined)
 
   return (
-    <Layout tab={tab} onTab={setTab}>
-      {tab==='registro'    && <Registro onCreated={openOrden} />}
-      {tab==='ordenes'     && <Ordenes onOpen={openOrden} />}
-      {tab==='presupuesto' && <Presupuesto/>}
-      {tab==='reparacion'  && <DetalleOrden ordenId={sessionStorage.getItem('ordenActual')||''}/>}
+    <Layout tab={tab} onTab={(t)=>{
+      setTab(t)
+      if(t==="reparacion" && !selId){
+        // sin orden seleccionada, permanece pero mostrará aviso
+      }
+    }}>
+      {tab==="registro" && (
+        <Registro onCreated={(id)=>{ setSelId(id); setTab("reparacion") }} />
+      )}
+      {tab==="ordenes" && (
+        <Ordenes onOpen={(id)=>{ setSelId(id); setTab("reparacion") }} />
+      )}
+      {tab==="presupuesto" && <Presupuesto />}
+      {tab==="reparacion" && (
+        selId ? <DetalleOrden ordenId={selId}/> :
+        <div className="card"><div className="card-body">Selecciona una orden desde “Órdenes”.</div></div>
+      )}
     </Layout>
   )
 }

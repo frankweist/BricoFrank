@@ -1,5 +1,5 @@
 ﻿import { useState } from "react"
-import { crearOrdenCompleta } from "../../domain/services"
+import { crearOrdenCompleta, crearOrdenesMultiples } from "../../domain/services"
 
 type EquipoForm = {
   categoria: string
@@ -30,20 +30,35 @@ export function Registro({ onCreated }:{ onCreated:(ordenId:string)=>void }){
     setEquipos(prev => prev.length>1 ? prev.filter((_,idx)=>idx!==i) : prev)
   }
 
-  async function crearOrdenes(){
-    if(!can) return
-    const ordenIds:string[] = []
-    for(const e of equipos){
-      const { orden } = await crearOrdenCompleta({
-        cliente: { nombre: cliente.nombre, telefono: cliente.telefono, email: cliente.email || undefined },
-        equipo:   { categoria: e.categoria, marca: e.marca, modelo: e.modelo, numeroSerie: e.numeroSerie || undefined, descripcion: e.descripcion }
-      })
-      ordenIds.push(orden.id)
-    }
-    onCreated(ordenIds[0])
+ async function crearOrdenes(){
+  if(!can) return
+
+  if(equipos.length === 1){
+    const e = equipos[0]
+    const { orden } = await crearOrdenCompleta({
+      cliente:{ nombre:cliente.nombre, telefono:cliente.telefono, email:cliente.email || undefined },
+      equipo:{ categoria:e.categoria, marca:e.marca, modelo:e.modelo, numeroSerie:e.numeroSerie || undefined, descripcion:e.descripcion }
+    })
+    onCreated(orden.id)
+    return
   }
 
+  // varios equipos -> un único cliente
+  const { resultados } = await crearOrdenesMultiples({
+    cliente:{ nombre:cliente.nombre, telefono:cliente.telefono, email:cliente.email || undefined },
+    equipos: equipos.map(e=>({
+      categoria:e.categoria, marca:e.marca, modelo:e.modelo,
+      numeroSerie:e.numeroSerie || undefined, descripcion:e.descripcion
+    }))
+  })
+  onCreated(resultados[0].orden.id)
+}
+
   const categorias = ["M\u00F3viles","Ordenadores","Consolas","Televisores","Placas","Robots","Bater\u00EDas","Otros"]
+
+// setCliente is already defined as a useState setter above, so this function is not needed and should be removed.
+// If you want to provide a type-safe setter, you can define its type as:
+// const setCliente: React.Dispatch<React.SetStateAction<{ nombre: string; telefono: string; email: string }>> = setCliente;
 
   return (
     <section className="grid gap-4">
