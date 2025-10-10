@@ -1,11 +1,13 @@
 ﻿import { useEffect, useState } from 'react'
 import { Wrench, Moon, Sun, ClipboardList, Calculator, Hammer } from 'lucide-react'
 import type { Tab } from '../../App'
+import { initAutoSync, onSyncState, getSyncState } from '../../sync/autosync'
 
 export function Layout({
   tab, onTab, children,
 }:{ tab:Tab; onTab:(t:Tab)=>void; children:React.ReactNode }){
   const [dark, setDark] = useState(()=> localStorage.getItem('gr_dark')==='1')
+  const [syncState,setSyncState] = useState(getSyncState())
 
   useEffect(()=>{
     const r = document.documentElement
@@ -41,6 +43,13 @@ export function Layout({
             <Wrench className="size-5 lg:hidden"/>
             <h1 className="font-semibold">Gestor de Reparaciones</h1>
             <div className="ml-auto flex items-center gap-2">
+              <span
+                data-sync-chip
+                className={`tab ${syncState==='idle'?'tab-active':''}`}
+                title={syncState}
+              >
+                {syncState==='idle'?'Sincronizado':syncState==='syncing'?'Sincronizando…':syncState==='offline'?'Offline':'Error'}
+              </span>
               <button className={`tab ${tab==='registro'?'tab-active':''}`}    onClick={()=>onTab('registro')}>Registro</button>
               <button className={`tab ${tab==='ordenes'?'tab-active':''}`}     onClick={()=>onTab('ordenes')}>{"\u00D3rdenes"}</button>
               <button className={`tab ${tab==='presupuesto'?'tab-active':''}`} onClick={()=>onTab('presupuesto')}>Presupuesto</button>
@@ -71,3 +80,4 @@ function NavItem({
     </button>
   )
 }
+

@@ -10,6 +10,7 @@
         "deploy": "gh-pages -d dist -r https://github.com/frankweist/BricoFrank.git"
     },
     "dependencies": {
+        "@supabase/supabase-js": "^2.75.0",
         "dexie": "^4.2.0",
         "dexie-react-hooks": "^4.2.0",
         "lucide-react": "^0.544.0",
