@@ -1,4 +1,4 @@
-﻿import { supa } from "./supabase";
+﻿import { supa } from "./data/supabase";
 import { db } from "../data/db";
 
 export type SyncState = "idle"|"syncing"|"offline"|"error";
@@ -69,3 +69,4 @@ export function initAutoSync(){
   setInterval(()=>{ pushNow(); }, 60_000);
   window.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="hidden"){ pushNow(); } });
 }
+
