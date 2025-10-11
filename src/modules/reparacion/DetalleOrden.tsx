@@ -429,37 +429,69 @@ export function DetalleOrden({ ordenId }: { ordenId: string }) {
                 const isImg = /^image\//.test(f.tipo)
                 const url = URL.createObjectURL(f.blob)
                 return (
-                  <div key={f.id} className="card"><div className="card-body grid gap-2">
+  <section className="grid gap-4">
+    <div className="card">
+      <div className="card-body grid gap-2">
+        {files?.length ? (
+          <div className="grid sm:grid-cols-3 md:grid-cols-4 gap-3">
+            {files.map(f => {
+              const isImg = /^image\//.test(f.tipo)
+              const url = URL.createObjectURL(f.blob)
+              return (
+                <div key={f.id} className="card">
+                  <div className="card-body grid gap-2">
                     <div className="text-sm break-all">{f.nombre}</div>
-                    <div className="text-xs opacity-70">{fmtBytes(f.tam)} {"\u2022"} {new Date(f.fecha).toLocaleString()}</div>
+                    <div className="text-xs opacity-70">
+                      {fmtBytes(f.tam)} {"\u2022"} {new Date(f.fecha).toLocaleString()}
+                    </div>
                     {isImg ? (
                       <a href={url} target="_blank" rel="noreferrer">
-                        <img src={url} alt={f.nombre} className="w-full h-32 object-cover rounded-lg border border-neutral-200/70 dark:border-neutral-800" />
+                        <img
+                          src={url}
+                          alt={f.nombre}
+                          className="w-full h-32 object-cover rounded-lg border border-neutral-200/70 dark:border-neutral-800"
+                        />
                       </a>
                     ) : (
-                      <a href={url} target="_blank" rel="noreferrer" className="btn">Descargar</a>
+                      <a href={url} target="_blank" rel="noreferrer" className="btn">
+                        Descargar
+                      </a>
                     )}
                     <div className="flex gap-2">
-                      <a className="btn" href={url} download={f.nombre}>Guardar</a>
-                      <button className="btn" onClick={() => borrarAdjunto(f.id)}>Borrar</button>
+                      <a className="btn" href={url} download={f.nombre}>
+                        Guardar
+                      </a>
+                      <button className="btn" onClick={() => borrarAdjunto(f.id)}>
+                        Borrar
+                      </button>
                     </div>
-                  </div></div>
-                )
-              })}
-            </div>
-          ) : <p className="text-sm text-neutral-500 dark:text-neutral-400">Sin adjuntos.</p>}
-        </div></div>
-      )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <p className="text-sm text-neutral-500 dark:text-neutral-400">Sin adjuntos.</p>
+        )}
+      </div>
+    </div>
 
-      {toast && (
-        <div className="fixed bottom-4 right-4 z-50">
-          <div className="card"><div className="card-body flex items-center gap-2">
+    {toast && (
+      <div className="fixed bottom-4 right-4 z-50">
+        <div className="card">
+          <div className="card-body flex items-center gap-2">
             <span>{toast.msg}</span>
-            {toast.action && <button className="btn btn-primary" onClick={() => { toast.action?.(); setToast(null) }}>Deshacer</button>}
-            <button className="btn" onClick={() => setToast(null)}>Cerrar</button>
-          </div></div>
+            {toast.action && (
+              <button className="btn btn-primary" onClick={() => { toast.action?.(); setToast(null) }}>
+                Deshacer
+              </button>
+            )}
+            <button className="btn" onClick={() => setToast(null)}>
+              Cerrar
+            </button>
+          </div>
         </div>
-      )}
-    </section>
-  )
-}
+      </div>
+    )}
+  </section>
+)
