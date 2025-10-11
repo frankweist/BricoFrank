@@ -22,11 +22,9 @@ $branchExists = git show-ref --verify --quiet refs/heads/gh-pages
 $remoteBranchExists = git show-ref --verify --quiet refs/remotes/origin/gh-pages
 
 if ($remoteBranchExists -eq 0 -and $branchExists -ne 0) {
-    # Si el remoto existe pero local no, crear la rama tracking
     git branch --track gh-pages origin/gh-pages 2>$null
 }
 elseif ($remoteBranchExists -ne 0 -and $branchExists -ne 0) {
-    # Si no existe ni remoto ni local, crear gh-pages orphan
     git switch --orphan gh-pages
     New-Item -ItemType File -Path ".keep" -Force | Out-Null
     git add .keep
@@ -45,8 +43,6 @@ if (-not (Test-Path "node_modules")) { npm ci }
 npm run build
 
 # 5) Publicar
-
-# Validar si carpeta $wt es repo git válido
 $insideWorkTree = $false
 try {
     $insideWorkTree = git -C $wt rev-parse --is-inside-work-tree 2>$null
@@ -61,12 +57,15 @@ if ($insideWorkTree) {
     New-Item -ItemType File -Path "$wt\.nojekyll" -Force | Out-Null
 
     git -C $wt add -A
-    git -C $wt commit -m ("deploy: {0:yyyyMMddHHmmss}" -f (Get-Date)) 2>$null
+    try {
+        git -C $wt commit -m ("deploy: {0:yyyyMMddHHmmss}" -f (Get-Date)) 2>$null
+    } catch {
+        # No hay cambios para commit, ignorar error
+    }
     git -C $wt push origin gh-pages
 
     Write-Host "OK: main actualizado y gh-pages desplegado."
-}
-else {
+} else {
     Write-Error "Error: La carpeta $wt no es un repositorio git válido. No se puede publicar."
     exit 1
 }
