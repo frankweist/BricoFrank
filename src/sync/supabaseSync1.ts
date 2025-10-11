@@ -9,7 +9,6 @@ export async function pushAllSupabase() {
     ordenes:  await db.ordenes.toArray(),
     eventos:  await db.eventos.toArray(),
     piezas:   await db.piezas.toArray(),
-    adjuntos: await db.adjuntos.toArray(),
   }
   const { error } = await supa.from("backups").insert({ payload })
   if (error) throw error
@@ -26,16 +25,14 @@ export async function pullLatestSupabase(): Promise<boolean> {
   if (error) throw error
   if (!data) return false
   const p: any = data.payload || {}
-  await db.transaction("rw", db.clientes, db.equipos, db.ordenes, db.eventos, db.piezas, db.adjuntos, async () => {
+  await db.transaction("rw", db.clientes, db.equipos, db.ordenes, db.eventos, db.piezas, async () => {
     await db.clientes.clear(); await db.equipos.clear()
-    await db.ordenes.clear();  await db.eventos.clear()
-    await db.piezas.clear();   await db.adjuntos.clear()
+    await db.ordenes.clear();  await db.eventos.clear(); await db.piezas.clear()
     if (p.clientes) await db.clientes.bulkAdd(p.clientes)
     if (p.equipos)  await db.equipos.bulkAdd(p.equipos)
     if (p.ordenes)  await db.ordenes.bulkAdd(p.ordenes)
     if (p.eventos)  await db.eventos.bulkAdd(p.eventos)
     if (p.piezas)   await db.piezas.bulkAdd(p.piezas)
-    if (p.adjuntos) await db.adjuntos.bulkAdd(p.adjuntos)
   })
   return true
 }

@@ -8,8 +8,7 @@ export class GRDB extends Dexie {
   eventos!: Table<Evento, string>
   piezas!: Table<Pieza, string>
   adjuntos!: Table<Adjunto, string>
-
-  constructor() {
+  constructor(){
     super('gestor-reparaciones')
     this.version(1).stores({
       clientes: 'id, nombre, telefono, fecha_alta',
@@ -28,5 +27,4 @@ export class GRDB extends Dexie {
     })
   }
 }
-
 export const db = new GRDB()

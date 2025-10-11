@@ -38,7 +38,7 @@ if (Test-Path $wt) { Remove-Item $wt -Recurse -Force }
 git worktree add $wt gh-pages
 
 # 4) Build
-if (-not (Test-Path "node_modules")) { npm ci } else { npm run build }
+if (-not (Test-Path "node_modules")) { npm ci }
 npm run build
 
 # 5) Publicar
