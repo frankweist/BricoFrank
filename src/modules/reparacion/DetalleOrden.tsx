@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 ﻿import { useState, useMemo, useEffect, useRef } from "react"
 import { useLiveQuery } from "dexie-react-hooks"
 import { db } from "../../data/db"
@@ -196,10 +197,40 @@ export function DetalleOrden({ ordenId }: { ordenId: string }) {
   }
   function setTarifaPreset(v:number){ setTarifa(v); localStorage.setItem("gr_tarifa", String(v)) }
   function addHoras(v:number){ setHoras(h => Math.max(0, +(h+v).toFixed(2))) }
+=======
+﻿import { useEffect, useMemo, useState } from "react"
+import { useLiveQuery } from "dexie-react-hooks"
+import { db } from "../../data/db"
+
+function fmtBytes(n:number){ if(n<1024) return n+" B"; const k=1024,u=["KB","MB","GB","TB"]; let i=-1,v=n; do{v/=k;i++}while(v>=k&&i<u.length-1); return v.toFixed(1)+" "+u[i] }
+
+export function DetalleOrden({ ordenId }:{ordenId:string}){
+  const [nota,setNota]=useState("")
+  const [pieza,setPieza]=useState({ nombre:"", cantidad:1, coste:0, estado:"pendiente" as "pendiente"|"pedido"|"recibido"|"instalado" })
+  const [horas,setHoras]=useState(1)
+  const [tarifa,setTarifa]=useState(25)
+
+  useEffect(()=>{ const t=Number(localStorage.getItem("gr_tarifa")||""); if(!Number.isNaN(t)&&t>0) setTarifa(t) },[])
+
+  const orden   = useLiveQuery(()=> ordenId? db.ordenes.get(ordenId):undefined,[ordenId])
+  const equipo  = useLiveQuery(async ()=>{ if(!ordenId) return; const o=await db.ordenes.get(ordenId); if(!o) return; return db.equipos.get(o.equipoId) },[ordenId,(orden as any)?.equipoId])
+  const cliente = useLiveQuery(async ()=>{ if(!equipo) return; return db.clientes.get(equipo.clienteId) },[equipo?.clienteId])
+
+  const eventos = useLiveQuery(()=> ordenId? db.eventos.where("ordenId").equals(ordenId).reverse().toArray():Promise.resolve([]),[ordenId])
+  const piezas  = useLiveQuery(()=> ordenId? db.piezas.where("ordenId").equals(ordenId).toArray():Promise.resolve([]),[ordenId])
+  const files   = useLiveQuery(()=> ordenId? db.adjuntos.where("ordenId").equals(ordenId).reverse().toArray():Promise.resolve([]),[ordenId])
+
+  const piezasTotal = useMemo(()=> (piezas||[]).reduce((s,p)=>s+(p.coste*p.cantidad),0),[piezas])
+  const manoObra = horas*tarifa
+  const total = manoObra + piezasTotal
+
+  if(!ordenId) return <div className="card"><div className="card-body">Selecciona o crea una orden.</div></div>
+>>>>>>> Stashed changes
 
   // -------- UI --------
   return (
     <section className="grid gap-4">
+<<<<<<< Updated upstream
       <div className="card"><div className="card-body grid gap-4">
         {/* ENCABEZADO: Cliente + Equipo + Orden */}
         <div className="grid gap-3">
@@ -446,6 +477,100 @@ export function DetalleOrden({ ordenId }: { ordenId: string }) {
             </div>
           ) : <p className="text-sm text-neutral-500 dark:text-neutral-400">Sin adjuntos.</p>}
         </div></div>
+=======
+      {/* CABECERA COMPACTA */}
+      <div className="card"><div className="card-body grid sm:grid-cols-3 gap-2">
+        <div>
+          <div className="text-xs opacity-70">Cliente</div>
+          <div className="text-sm">{cliente?.nombre||"-"}</div>
+          <div className="text-xs">{cliente?.telefono||""}{cliente?.email? " · "+cliente.email:""}</div>
+        </div>
+        <div>
+          <div className="text-xs opacity-70">Equipo</div>
+          <div className="text-sm">{[equipo?.categoria,equipo?.marca,equipo?.modelo].filter(Boolean).join(" ")||"-"}</div>
+          <div className="text-xs">{equipo?.numeroSerie? "Nº "+equipo.numeroSerie:""}</div>
+        </div>
+        <div>
+          <div className="text-xs opacity-70">Orden</div>
+          <div className="text-sm">Código: {orden?.codigo||"..."}</div>
+          <div className="text-xs">Estado: {orden?.estado}</div>
+        </div>
+      </div></div>
+
+      {/* COSTES (sin IVA) */}
+      <div className="card"><div className="card-body grid gap-3">
+        <div className="font-medium">Costes (sin IVA)</div>
+        <div className="grid sm:grid-cols-4 gap-2">
+          <label className="grid gap-1"><span className="text-sm">Horas</span><input className="input" type="number" value={horas} onChange={e=>setHoras(parseFloat(e.target.value)||0)}/></label>
+        <label className="grid gap-1"><span className="text-sm">Tarifa {"\u20AC"}/h</span><input className="input" type="number" value={tarifa} onChange={e=>setTarifa(parseFloat(e.target.value)||0)}/></label>
+          <label className="grid gap-1"><span className="text-sm">Mano de obra</span><input className="input" value={manoObra.toFixed(2)} readOnly/></label>
+          <label className="grid gap-1"><span className="text-sm">Piezas</span><input className="input" value={piezasTotal.toFixed(2)} readOnly/></label>
+        </div>
+        <div className="text-xl font-bold">Total: {total.toFixed(2)} {"\u20AC"}</div>
+      </div></div>
+
+      {/* TIMELINE */}
+      <div className="card"><div className="card-body grid gap-3">
+        <div className="font-medium">Notas</div>
+        <div className="grid sm:grid-cols-[1fr_auto] gap-2">
+          <input className="input" placeholder="Nueva nota" value={nota} onChange={e=>setNota(e.target.value)}/>
+          <button className="btn btn-primary" onClick={async()=>{ if(!nota.trim()) return; await db.eventos.add({ id:crypto.randomUUID(), ordenId, tipo:"nota", texto:nota.trim(), fecha:new Date().toISOString() }); setNota("") }}>Añadir</button>
+        </div>
+        {eventos?.length? (
+          <ul className="text-sm">
+            {eventos.map(e=>(<li key={e.id}>{new Date(e.fecha).toLocaleString()} — {e.texto}</li>))}
+          </ul>
+        ): <p className="text-sm opacity-60">Sin eventos.</p>}
+      </div></div>
+
+      {/* PIEZAS */}
+      <div className="card"><div className="card-body grid gap-3">
+        <div className="font-medium">Piezas</div>
+        <div className="grid sm:grid-cols-4 gap-2">
+          <input className="input" placeholder="Nombre" value={pieza.nombre} onChange={e=>setPieza({...pieza, nombre:e.target.value})}/>
+          <input className="input" type="number" placeholder="Cant." value={pieza.cantidad} onChange={e=>setPieza({...pieza, cantidad:Math.max(1, parseInt(e.target.value||"1",10))})}/>
+          <input className="input" type="number" placeholder="Coste" value={pieza.coste} onChange={e=>setPieza({...pieza, coste:parseFloat(e.target.value)||0})}/>
+          <select className="input" value={pieza.estado} onChange={e=>setPieza({...pieza, estado:e.target.value as any})}>
+            {["pendiente","pedido","recibido","instalado"].map(s=><option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+        <div><button className="btn btn-primary" onClick={async()=>{ if(!pieza.nombre.trim()) return; await db.piezas.add({ id:crypto.randomUUID(), ordenId, nombre:pieza.nombre.trim(), cantidad:pieza.cantidad, coste:Number(pieza.coste)||0, estado:pieza.estado }); setPieza({ nombre:"", cantidad:1, coste:0, estado:"pendiente" }) }}>Añadir pieza</button></div>
+        {piezas?.length? (
+          <ul className="text-sm grid gap-1">
+            {piezas.map(p=>(
+              <li key={p.id} className="flex items-center gap-2">
+                <span className="flex-1">{p.nombre} ×{p.cantidad} — {p.estado} — {p.coste.toFixed(2)} {"\u20AC"}</span>
+                <button className="btn" onClick={async()=>{ await db.piezas.delete(p.id) }}>Borrar</button>
+              </li>
+            ))}
+          </ul>
+        ): <p className="text-sm opacity-60">Sin piezas.</p>}
+      </div></div>
+
+      {/* ADJUNTOS */}
+      <div className="card"><div className="card-body grid gap-3">
+        <div className="font-medium">Adjuntos</div>
+        <input type="file" className="input" multiple onChange={async ev=>{ const fl=ev.target.files; if(!fl||!fl.length) return; for(const f of Array.from(fl)){ const id=crypto.randomUUID(); const arr=await f.arrayBuffer(); const blob=new Blob([arr],{type:f.type||"application/octet-stream"}); await db.adjuntos.add({ id, ordenId, nombre:f.name, tipo:f.type||"application/octet-stream", tam:f.size, fecha:new Date().toISOString(), blob }); } (ev.target as HTMLInputElement).value="" }}/>
+        {files?.length? (
+          <div className="grid sm:grid-cols-3 md:grid-cols-4 gap-3">
+            {files.map(f=>{
+              const isImg=/^image\//.test(f.tipo); const url=URL.createObjectURL(f.blob)
+              return (
+                <div key={f.id} className="card"><div className="card-body grid gap-2">
+                  <div className="text-sm break-all">{f.nombre}</div>
+                  <div className="text-xs opacity-70">{fmtBytes(f.tam)} {"\u2022"} {new Date(f.fecha).toLocaleString()}</div>
+                  {isImg? <a href={url} target="_blank" rel="noreferrer"><img src={url} alt={f.nombre} className="w-full h-32 object-cover rounded-lg border border-neutral-200/70 dark:border-neutral-800"/></a>
+                        : <a href={url} target="_blank" rel="noreferrer" className="btn">Descargar</a>}
+                  <div className="flex gap-2">
+                    <a className="btn" href={url} download={f.nombre}>Guardar</a>
+                    <button className="btn" onClick={async()=>{ await db.adjuntos.delete(f.id) }}>Borrar</button>
+                  </div>
+                </div></div>
+              )
+            })}
+          </div>
+        ): <p className="text-sm opacity-60">Sin adjuntos.</p>}
+>>>>>>> Stashed changes
       </div></div>
 
       {toast && (

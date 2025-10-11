@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 ﻿import { useEffect, useState } from 'react'
 import { Wrench, Moon, Sun, ClipboardList, Calculator, Hammer } from 'lucide-react'
 import type { Tab } from '../../App'
@@ -8,34 +9,52 @@ export function Layout({
 }:{ tab:Tab; onTab:(t:Tab)=>void; children:React.ReactNode }){
   const [dark, setDark] = useState(()=> localStorage.getItem('gr_dark')==='1')
   const [syncState,setSyncState] = useState(getSyncState())
+=======
+﻿import { useState, useEffect } from "react";
+import { Registro } from "../registro/Registro";
+import { Presupuesto } from "../presupuesto/Presupuesto";
+import { DetalleOrden } from "../reparacion/DetalleOrden";
+import { Historial } from "../historial/Historial";
+import { useSeleccion } from "../../store/seleccion";
+import { Listados } from "@core/data";
 
-  useEffect(()=>{
-    const r = document.documentElement
-    if(dark){ r.classList.add('dark'); localStorage.setItem('gr_dark','1') }
-    else { r.classList.remove('dark'); localStorage.setItem('gr_dark','0') }
-  },[dark])
+export function App(){
+  const [vista, setVista] = useState<"registro"|"presupuesto"|"detalle"|"historial">("registro");
+  const { ordenId } = useSeleccion();
+  const [resumen, setResumen] = useState<{codigo?:string; cliente?:string; equipo?:string}>({});
+>>>>>>> Stashed changes
+
+  useEffect(()=>{ 
+    if(!ordenId){ setResumen({}); return; }
+    Listados.obtenerOrdenDetallada(ordenId).then(o=>{
+      if(!o) return setResumen({});
+      setResumen({
+        codigo: o.codigo_orden,
+        cliente: o.cliente?.nombre,
+        equipo: o.aparato ? `${o.aparato.marca} ${o.aparato.modelo}` : undefined
+      });
+    });
+  },[ordenId]);
 
   return (
-    <div className="min-h-screen grid grid-cols-1 lg:grid-cols-[240px_1fr] bg-white text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
-      {/* Sidebar */}
-      <aside className="hidden lg:flex lg:flex-col gap-2 border-r border-neutral-200/70 dark:border-neutral-800 p-4">
-        <div className="flex items-center gap-2 font-semibold text-lg">
-          <Wrench className="size-5" /> Gestor
-        </div>
-        <nav className="mt-4 grid gap-1">
-          <NavItem icon={ClipboardList} label={"Registro"} active={tab==='registro'} onClick={()=>onTab('registro')}/>
-          <NavItem icon={ClipboardList} label={"\u00D3rdenes"} active={tab==='ordenes'} onClick={()=>onTab('ordenes')}/>
-          <NavItem icon={Calculator}    label={"Presupuesto"} active={tab==='presupuesto'} onClick={()=>onTab('presupuesto')}/>
-          <NavItem icon={Hammer}        label={"Reparaci\u00F3n"} active={tab==='reparacion'} onClick={()=>onTab('reparacion')}/>
+    <div className="container space-y-4">
+      <header className="flex items-center justify-between">
+        <h1 className="h1">Gestor de Reparaciones</h1>
+        <nav className="tabs">
+          <button className={`tab ${vista==='registro'?'tab-active':''}`} onClick={()=>setVista("registro")}>Registro</button>
+          <button className={`tab ${vista==='presupuesto'?'tab-active':''}`} onClick={()=>setVista("presupuesto")}>Presupuesto</button>
+          <button className={`tab ${vista==='detalle'?'tab-active':''}`} onClick={()=>setVista("detalle")}>Reparación</button>
+          <button className={`tab ${vista==='historial'?'tab-active':''}`} onClick={()=>setVista("historial")}>Historial</button>
         </nav>
-        <div className="mt-auto pt-4 border-t border-neutral-200/70 dark:border-neutral-800">
-          <button className="btn btn-ghost w-full" onClick={()=>setDark(v=>!v)}>
-            {dark ? <Sun className="size-4"/> : <Moon className="size-4"/>}
-            <span className="ml-2">{dark ? 'Modo claro' : 'Modo oscuro'}</span>
-          </button>
-        </div>
-      </aside>
+      </header>
 
+      {resumen.codigo && (
+        <div className="card text-sm">
+          <b>Orden activa:</b> {resumen.codigo} · <b>Cliente:</b> {resumen.cliente ?? "—"} · <b>Equipo:</b> {resumen.equipo ?? "—"}
+        </div>
+      )}
+
+<<<<<<< Updated upstream
       {/* Main */}
       <div className="flex flex-col min-h-screen">
         <header className="sticky top-0 z-10 border-b border-neutral-200/70 dark:border-neutral-800 bg-white/80 dark:bg-neutral-950/70 backdrop-blur">
@@ -81,3 +100,12 @@ function NavItem({
   )
 }
 
+=======
+      {vista==="registro"   && <section className="card"><Registro/></section>}
+      {vista==="presupuesto"&& <section className="card"><Presupuesto/></section>}
+      {vista==="detalle"    && <section className="card"><DetalleOrden/></section>}
+      {vista==="historial"  && <section className="card"><Historial/></section>}
+    </div>
+  );
+}
+>>>>>>> Stashed changes

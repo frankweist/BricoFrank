@@ -1,6 +1,7 @@
 ﻿import { useMemo, useState } from "react"
 import { useLiveQuery } from "dexie-react-hooks"
 import { db } from "../../data/db"
+<<<<<<< Updated upstream
 import { deleteOrdenCascade } from "../../domain/cascade"
 import { pushAllSupabase, pullLatestSupabase } from "../../sync/supabaseSync"
 
@@ -15,8 +16,17 @@ type OrdenRow = {
   equipo: string
   creada: string
   actualizada: string
-}
+=======
 
+type Row = {
+  ordenId:string; codigo:string; estado:string; creada:string; actualizada:string
+  clienteId:string; cliente:string; telefono?:string; equipo:string
+>>>>>>> Stashed changes
+}
+const fmt = (d?:string)=> d? new Date(d).toLocaleDateString()+" "+new Date(d).toLocaleTimeString() : ""
+const norm = (s:string)=> s.normalize("NFD").replace(/\p{Diacritic}/gu,"").toLowerCase()
+
+<<<<<<< Updated upstream
 // Convierte array de OrdenRow a CSV
 function toCSV(rows: OrdenRow[]) {
   const esc = (s: string) => `"${(s || '').replace(/"/g, '""')}"`
@@ -286,6 +296,139 @@ export function Ordenes({ onOpen }: { onOpen: (id: string) => void }) {
               <button className="btn" onClick={syncPull}>Bajar Supabase</button>
             </div>
           </div>
+=======
+export function Ordenes(){
+  const [q,setQ] = useState("")
+  const [estado,setEstado] = useState<""|"recepcion"|"diagnostico"|"reparacion"|"listo"|"entregado">("")
+  const [open,setOpen] = useState<Record<string,boolean>>({})
+
+  const ordenes = useLiveQuery(async ()=>{
+    const os = await db.ordenes.toArray()
+    const eqIdx = new Map((await db.equipos.toArray()).map(e=>[e.id,e]))
+    const clIdx = new Map((await db.clientes.toArray()).map(c=>[c.id,c]))
+    return os.map(o=>{
+      const eq = eqIdx.get(o.equipoId)!; const cl = clIdx.get(eq.clienteId)!
+      return {
+        ordenId:o.id, codigo:o.codigo, estado:o.estado,
+        creada:o.creada, actualizada:o.actualizada||o.creada,
+        clienteId:cl.id, cliente:cl.nombre||"", telefono:cl.telefono||"",
+        equipo:[eq.categoria,eq.marca,eq.modelo].filter(Boolean).join(" ")
+      } as Row
+    })
+  },[])
+
+  const filtered = useMemo(()=>{
+    if(!ordenes) return []
+    const nq = norm(q)
+    return ordenes.filter(r=>{
+      const okE = estado? r.estado===estado : true
+      const okQ = nq ? (
+        norm(r.codigo).includes(nq) || norm(r.cliente).includes(nq) ||
+        norm(r.equipo).includes(nq) || (r.telefono||"").includes(q)
+      ) : true
+      return okE && okQ
+    }).sort((a,b)=> (b.actualizada||"").localeCompare(a.actualizada||""))
+  },[ordenes,q,estado])
+
+  // Agrupar por cliente para badge +N
+  const groups = useMemo(()=>{
+    const m = new Map<string,{head:Row; children:Row[]}>()
+    for(const r of filtered){
+      const k = r.clienteId
+      if(!m.has(k)) m.set(k,{head:r,children:[r]})
+      else {
+        const g=m.get(k)!; g.children.push(r)
+        if((g.head.actualizada||"")<(r.actualizada||"")) g.head=r
+      }
+    }
+    return Array.from(m.values()).map(g=>({
+      ...g,
+      count:g.children.length,
+      children:g.children.sort((a,b)=> (b.actualizada||"").localeCompare(a.actualizada||""))
+    }))
+  },[filtered])
+
+  function exportCSV(){
+    const head=["codigo","cliente","telefono","equipo","estado","creada","actualizada"]
+    const body=filtered.map(r=>[r.codigo,r.cliente,r.telefono||"",r.equipo,r.estado,fmt(r.creada),fmt(r.actualizada)].join(","))
+    const csv=[head.join(","),...body].join("\n")
+    const a=document.createElement("a")
+    a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}))
+    a.download="ordenes.csv"; a.click(); URL.revokeObjectURL(a.href)
+  }
+
+  async function importJSON(ev:React.ChangeEvent<HTMLInputElement>){
+    const f=ev.target.files?.[0]; if(!f) return
+    const data=JSON.parse(await f.text())
+    await db.transaction("rw",db.clientes,db.equipos,db.ordenes,db.eventos,db.piezas,db.adjuntos,async()=>{
+      if(data.clientes) await db.clientes.clear(), await db.clientes.bulkAdd(data.clientes)
+      if(data.equipos)  await db.equipos.clear(),  await db.equipos.bulkAdd(data.equipos)
+      if(data.ordenes)  await db.ordenes.clear(),  await db.ordenes.bulkAdd(data.ordenes)
+      if(data.eventos)  await db.eventos.clear(),  await db.eventos.bulkAdd(data.eventos)
+      if(data.piezas)   await db.piezas.clear(),   await db.piezas.bulkAdd(data.piezas)
+      if(data.adjuntos) await db.adjuntos.clear(),await db.adjuntos.bulkAdd(data.adjuntos)
+    })
+    ev.target.value=""
+  }
+
+  return (
+    <section className="grid gap-4">
+      <div className="card"><div className="card-body grid gap-3">
+        <div className="grid sm:grid-cols-[1fr_200px] gap-2">
+          <input className="input" placeholder="Buscar por código, cliente, equipo o teléfono" value={q} onChange={e=>setQ(e.target.value)}/>
+          <select className="input" value={estado} onChange={e=>setEstado(e.target.value as any)}>
+            <option value="">Todos</option>
+            {["recepcion","diagnostico","reparacion","listo","entregado"].map(s=><option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+        <div className="flex gap-2">
+          <button className="btn" onClick={exportCSV}>Exportar CSV</button>
+          <label className="btn cursor-pointer">Importar JSON<input type="file" className="hidden" accept="application/json" onChange={importJSON}/></label>
+        </div>
+      </div></div>
+
+      <div className="card"><div className="card-body">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left opacity-70">
+                <th className="p-2">Cliente</th><th className="p-2">Teléfono</th><th className="p-2">Equipo</th><th className="p-2">Estado</th><th className="p-2">Actualizada</th><th className="p-2"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {groups.map(g=>{
+                const h=g.head; const badge=g.count>1?+:""
+                return (
+                  <>
+                    <tr key={h.clienteId} className="border-t border-neutral-800/20">
+                      <td className="p-2">{h.cliente} {badge && <span className="ml-2 inline-flex items-center justify-center px-2 rounded bg-neutral-800/10 dark:bg-neutral-100/10 text-xs">{badge}</span>}</td>
+                      <td className="p-2">{h.telefono||""}</td>
+                      <td className="p-2">{h.equipo}</td>
+                      <td className="p-2">{h.estado}</td>
+                      <td className="p-2">{fmt(h.actualizada)}</td>
+                      <td className="p-2 flex gap-2">
+                        <a className="btn" href={#/reparacion/}>Abrir</a>
+                        {g.count>1 && <button className="btn" onClick={()=>setOpen(s=>({...s,[h.clienteId]:!s[h.clienteId]}))}>{open[h.clienteId]?"Ocultar":"Ver todos"}</button>}
+                      </td>
+                    </tr>
+                    {open[h.clienteId] && g.children.map(ch=>(
+                      ch.ordenId===h.ordenId? null :
+                      <tr key={ch.ordenId} className="bg-neutral-50/40 dark:bg-neutral-900/40">
+                        <td className="p-2 pl-8" colSpan={1}>{ch.codigo}</td>
+                        <td className="p-2">{h.telefono||""}</td>
+                        <td className="p-2">{ch.equipo}</td>
+                        <td className="p-2">{ch.estado}</td>
+                        <td className="p-2">{fmt(ch.actualizada)}</td>
+                        <td className="p-2"><a className="btn" href={#/reparacion/}>Abrir</a></td>
+                      </tr>
+                    ))}
+                  </>
+                )
+              })}
+              {!groups.length && (<tr><td className="p-3 text-center opacity-60" colSpan={6}>Sin resultados</td></tr>)}
+            </tbody>
+          </table>
+>>>>>>> Stashed changes
         </div>
       </div>
     </section>
