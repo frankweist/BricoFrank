@@ -4,6 +4,7 @@ import { Registro } from "./modules/registro/Registro"
 import { Ordenes } from "./modules/ordenes/Ordenes"
 import { Presupuesto } from "./modules/presupuesto/Presupuesto"
 import { DetalleOrden } from "./modules/reparacion/DetalleOrden"
+import './sync/autosync'
 
 export type Tab = "registro"|"ordenes"|"presupuesto"|"reparacion"
 
