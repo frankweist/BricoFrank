@@ -2,7 +2,7 @@
 $ErrorActionPreference = "Stop"
 Set-Location -LiteralPath $PSScriptRoot
 
-# Definir rutas para worktrees
+# Rutas worktree
 $root = git rev-parse --show-toplevel
 $oldWorktreePath = Join-Path $root "gh-pages"
 $wt = Join-Path $root "_pages"
@@ -10,11 +10,10 @@ $wt = Join-Path $root "_pages"
 # 0) Comprobar repo raíz
 git rev-parse --show-toplevel *> $null
 
-# 1) Actualizar main
+# 1) Actualizar main con stash si hay cambios
 git switch main
 git fetch origin
 
-# Manejar cambios unstaged para evitar error pull rebase
 $unstaged = git status --porcelain
 if ($unstaged) {
     git stash push -m "stash before pull"
@@ -31,22 +30,22 @@ $pending = git diff --cached --name-only
 if ($pending) { git commit -m $m }
 git push origin main
 
-# 2) Limpieza worktree antiguo gh-pages
+# 2) Limpiar worktree antiguo gh-pages (forzar limpieza)
 if ($null -ne $oldWorktreePath -and (Test-Path $oldWorktreePath)) {
     Write-Host "Eliminando worktree antiguo en $oldWorktreePath"
-    git worktree remove $oldWorktreePath
+    git worktree remove --force $oldWorktreePath
     Remove-Item $oldWorktreePath -Recurse -Force
 }
 
-# 3) Limpieza carpeta _pages
+# 3) Limpiar carpeta _pages
 if ($null -ne $wt -and (Test-Path $wt)) {
     Remove-Item $wt -Recurse -Force
 }
 
-# 4) Crear worktree nuevo en _pages
+# 4) Crear nuevo worktree
 git worktree add $wt gh-pages
 
-# Esperar que carpeta exista
+# Esperar creación carpeta
 Start-Sleep -Seconds 1
 
 if (-not (Test-Path $wt)) {
@@ -59,11 +58,11 @@ if (-not (git -C $wt rev-parse --is-inside-work-tree 2>$null)) {
     exit 1
 }
 
-# 5) Build con npm y Vite
+# 5) Build
 if (-not (Test-Path "node_modules")) { npm ci }
 npm run build
 
-# 6) Copiar build y publicar
+# 6) Copiar y publicar
 Remove-Item "$wt\*" -Recurse -Force -ErrorAction SilentlyContinue
 Copy-Item .\dist\* $wt -Recurse -Force
 Copy-Item "$wt\index.html" "$wt\404.html" -Force
