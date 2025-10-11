@@ -86,7 +86,7 @@ if (Test-Path $wt) { Remove-Item $wt -Recurse -Force }
 git worktree add -B gh-pages $wt origin/gh-pages
 
 # 8) Publicar artefactos
-Remove-Item "$wt\*" -Recurse -Force -ErrorAction SilentlyContinue
+Get-ChildItem $wt -Force | Where-Object { $_.Name -ne '.git' } | Remove-Item -Recurse -Force
 Copy-Item .\dist\* $wt -Recurse -Force
 Copy-Item "$wt\index.html" "$wt\404.html" -Force
 New-Item -ItemType File -Path "$wt\.nojekyll" -Force | Out-Null
