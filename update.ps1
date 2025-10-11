@@ -17,18 +17,21 @@ git push origin main
 
 # 2) Asegurar gh-pages existe
 git fetch origin
-git show-ref --verify --quiet refs/remotes/origin/gh-pages
-if ($LASTEXITCODE -eq 0) {
-  git branch --track gh-pages origin/gh-pages 2>$null
-} else {
-  git show-ref --verify --quiet refs/heads/gh-pages
-  if ($LASTEXITCODE -ne 0) {
+
+$branchExists = git show-ref --verify --quiet refs/heads/gh-pages
+$remoteBranchExists = git show-ref --verify --quiet refs/remotes/origin/gh-pages
+
+if ($remoteBranchExists -eq 0 -and $branchExists -ne 0) {
+    # Si el remoto existe pero local no, crear la rama tracking
+    git branch --track gh-pages origin/gh-pages 2>$null
+}
+elseif ($remoteBranchExists -ne 0 -and $branchExists -ne 0) {
+    # Si no existe ni remoto ni local, crear gh-pages orphan
     git switch --orphan gh-pages
     New-Item -ItemType File -Path ".keep" -Force | Out-Null
     git add .keep
     git commit -m "init gh-pages"
     git switch main
-  }
 }
 
 # 3) Worktree
