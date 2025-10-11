@@ -2,8 +2,10 @@
 $ErrorActionPreference = "Stop"
 Set-Location -LiteralPath $PSScriptRoot
 
-# Ruta para worktree
-$wt = Join-Path $PSScriptRoot "_pages"
+# Definir rutas para worktrees
+$root = git rev-parse --show-toplevel
+$oldWorktreePath = Join-Path $root "gh-pages"
+$wt = Join-Path $root "_pages"
 
 # 0) Comprobar repo raíz
 git rev-parse --show-toplevel *> $null
@@ -11,40 +13,40 @@ git rev-parse --show-toplevel *> $null
 # 1) Actualizar main
 git switch main
 git fetch origin
+
+# Manejar cambios unstaged para evitar error pull rebase
+$unstaged = git status --porcelain
+if ($unstaged) {
+    git stash push -m "stash before pull"
+}
+
 git pull --rebase origin main
+
+if ($unstaged) {
+    git stash pop
+}
 
 git add -A
 $pending = git diff --cached --name-only
 if ($pending) { git commit -m $m }
 git push origin main
 
-# 2) Asegurar existencia gh-pages
-git fetch origin
-
-$branchExists = git show-ref --verify --quiet refs/heads/gh-pages
-$remoteBranchExists = git show-ref --verify --quiet refs/remotes/origin/gh-pages
-
-if ($remoteBranchExists -eq 0 -and $branchExists -ne 0) {
-    git branch --track gh-pages origin/gh-pages 2>$null
-}
-elseif ($remoteBranchExists -ne 0 -and $branchExists -ne 0) {
-    git switch --orphan gh-pages
-    New-Item -ItemType File -Path ".keep" -Force | Out-Null
-    git add .keep
-    git commit -m "init gh-pages"
-    git switch main
+# 2) Limpieza worktree antiguo gh-pages
+if ($null -ne $oldWorktreePath -and (Test-Path $oldWorktreePath)) {
+    Write-Host "Eliminando worktree antiguo en $oldWorktreePath"
+    git worktree remove $oldWorktreePath
+    Remove-Item $oldWorktreePath -Recurse -Force
 }
 
-# 3) Limpiar y crear worktree
-git worktree prune
-
+# 3) Limpieza carpeta _pages
 if ($null -ne $wt -and (Test-Path $wt)) {
     Remove-Item $wt -Recurse -Force
 }
 
+# 4) Crear worktree nuevo en _pages
 git worktree add $wt gh-pages
 
-# Esperar que carpeta worktree exista y esté lista
+# Esperar que carpeta exista
 Start-Sleep -Seconds 1
 
 if (-not (Test-Path $wt)) {
@@ -57,11 +59,11 @@ if (-not (git -C $wt rev-parse --is-inside-work-tree 2>$null)) {
     exit 1
 }
 
-# 4) Build
+# 5) Build con npm y Vite
 if (-not (Test-Path "node_modules")) { npm ci }
 npm run build
 
-# 5) Copiar y publicar
+# 6) Copiar build y publicar
 Remove-Item "$wt\*" -Recurse -Force -ErrorAction SilentlyContinue
 Copy-Item .\dist\* $wt -Recurse -Force
 Copy-Item "$wt\index.html" "$wt\404.html" -Force
@@ -71,7 +73,7 @@ git -C $wt add -A
 try {
     git -C $wt commit -m ("deploy: {0:yyyyMMddHHmmss}" -f (Get-Date)) 2>$null
 } catch {
-    # sin cambios, ignorar error
+    # sin cambios para commit, ignorar error
 }
 git -C $wt push origin gh-pages
 
