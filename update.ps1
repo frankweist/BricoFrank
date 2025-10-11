@@ -45,13 +45,28 @@ if (-not (Test-Path "node_modules")) { npm ci }
 npm run build
 
 # 5) Publicar
-Remove-Item "$wt\*" -Recurse -Force -ErrorAction SilentlyContinue
-Copy-Item .\dist\* $wt -Recurse -Force
-Copy-Item "$wt\index.html" "$wt\404.html" -Force
-New-Item -ItemType File -Path "$wt\.nojekyll" -Force | Out-Null
 
-git -C $wt add -A
-git -C $wt commit -m ("deploy: {0:yyyyMMddHHmmss}" -f (Get-Date)) 2>$null
-git -C $wt push origin gh-pages
+# Validar si carpeta $wt es repo git válido
+$insideWorkTree = $false
+try {
+    $insideWorkTree = git -C $wt rev-parse --is-inside-work-tree 2>$null
+} catch {
+    $insideWorkTree = $false
+}
 
-Write-Host "OK: main actualizado y gh-pages desplegado."
+if ($insideWorkTree) {
+    Remove-Item "$wt\*" -Recurse -Force -ErrorAction SilentlyContinue
+    Copy-Item .\dist\* $wt -Recurse -Force
+    Copy-Item "$wt\index.html" "$wt\404.html" -Force
+    New-Item -ItemType File -Path "$wt\.nojekyll" -Force | Out-Null
+
+    git -C $wt add -A
+    git -C $wt commit -m ("deploy: {0:yyyyMMddHHmmss}" -f (Get-Date)) 2>$null
+    git -C $wt push origin gh-pages
+
+    Write-Host "OK: main actualizado y gh-pages desplegado."
+}
+else {
+    Write-Error "Error: La carpeta $wt no es un repositorio git válido. No se puede publicar."
+    exit 1
+}
