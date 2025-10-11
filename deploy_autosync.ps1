@@ -1,54 +1,103 @@
-﻿param([string]$m = "chore: update")
+﻿# Ejemplo de uso:
+# powershell -ExecutionPolicy Bypass -File .\deploy_autosync.ps1 `
+#   -SupabaseUrl "https://dzazapfzfuonyuvslhgk.supabase.co" `
+#   -AnonKey "PEGA_AQUI_TU_ANON"
+
+param(
+  [Parameter(Mandatory=$true)][string]$SupabaseUrl,
+  [Parameter(Mandatory=$true)][string]$AnonKey,
+  [string]$CommitMsg = "chore: autosync + deploy"
+)
+
 $ErrorActionPreference = "Stop"
-Set-Location -LiteralPath $PSScriptRoot
+Set-Location $PSScriptRoot
 
-# 0) Comprobación repo
-git rev-parse --show-toplevel *> $null
+function Info($m){ Write-Host "[i] $m" -ForegroundColor Cyan }
+function Ok($m){ Write-Host "[ok] $m" -ForegroundColor Green }
+function Fail($m){ Write-Error $m; exit 1 }
 
-# 1) Main al día
-git switch main
-git fetch origin
-git pull --rebase origin main
+# 0) Comprobaciones básicas
+if (-not (Test-Path ".git")) { Fail "No es un repo git: $PWD" }
+git rev-parse --is-inside-work-tree *> $null
 
-git add -A
-$pending = git diff --cached --name-only
-if ($pending) { git commit -m $m }
-git push origin main
+# 1) .env.local con VITE_* (y asegurar que no se sube)
+Info "Escribiendo .env.local"
+@"
+VITE_SUPABASE_URL=$SupabaseUrl
+VITE_SUPABASE_ANON_KEY=$AnonKey
+"@ | Set-Content -Encoding UTF8 .\.env.local
 
-# 2) Asegurar gh-pages existe
-git fetch origin
-git show-ref --verify --quiet refs/remotes/origin/gh-pages
-if ($LASTEXITCODE -eq 0) {
-  git branch --track gh-pages origin/gh-pages 2>$null
-} else {
-  git show-ref --verify --quiet refs/heads/gh-pages
-  if ($LASTEXITCODE -ne 0) {
-    git switch --orphan gh-pages
-    New-Item -ItemType File -Path ".keep" -Force | Out-Null
-    git add .keep
-    git commit -m "init gh-pages"
-    git switch main
-  }
+if (-not (Select-String -Path ".gitignore" -Pattern "^\s*\.env\.local\s*$" -Quiet)) {
+  Add-Content ".gitignore" ".env.local"
+  Ok "Añadido .env.local a .gitignore"
 }
 
-# 3) Worktree
+# 2) Verificar que existe el autosync y el cliente de supabase
+$auto = "src\sync\autosync.ts"
+$sb   = "src\data\supabase.ts"
+if (-not (Test-Path $auto)) { Fail "Falta $auto" }
+if (-not (Test-Path $sb))   { Fail "Falta $sb" }
+
+# 3) Asegurar import de autosync en main.tsx
+$main = "src\main.tsx"
+if (-not (Test-Path $main)) { Fail "Falta $main" }
+$m = Get-Content -Raw -Encoding UTF8 $main
+if ($m -notmatch "import\s+['""]\./sync/autosync['""]") {
+  $m = $m -replace "(\s*import\s+['""]\.\/styles\.css['""]\s*;)", "`$1`r`nimport './sync/autosync'"
+  $m | Set-Content -Encoding UTF8 $main
+  Ok "Añadido import './sync/autosync' a main.tsx"
+}
+
+# 4) Base correcta en vite.config.ts
+$vite = "vite.config.ts"
+if (-not (Test-Path $vite)) { Fail "Falta $vite" }
+$v = Get-Content -Raw -Encoding UTF8 $vite
+if ($v -notmatch "base:\s*'\/BricoFrank\/'") {
+  $v = $v -replace "base:\s*'.*?'", "base: '/BricoFrank/'"
+  $v | Set-Content -Encoding UTF8 $vite
+  Ok "Ajustada base en vite.config.ts a /BricoFrank/"
+}
+
+# 5) Instalar deps si faltan y compilar
+if (-not (Test-Path "node_modules")) {
+  Info "Instalando dependencias…"
+  npm ci
+}
+Info "Compilando build…"
+npm run build
+
+# 6) Commit y push en main con cambios (si los hay)
+git add -A
+$pending = git diff --cached --name-only
+if ($pending) {
+  git commit -m $CommitMsg
+  git push origin main
+  Ok "Subidos cambios a main"
+}else{
+  Info "Sin cambios en main"
+}
+
+# 7) Desplegar a gh-pages con worktree ..\_pages
+Info "Preparando worktree gh-pages…"
+git fetch origin
 git worktree prune
 $wt = Join-Path $PSScriptRoot "..\_pages"
 if (Test-Path $wt) { Remove-Item $wt -Recurse -Force }
-git worktree add $wt gh-pages
+git worktree add -B gh-pages $wt origin/gh-pages
 
-# 4) Build
-if (-not (Test-Path "node_modules")) { npm ci } else { npm run build }
-npm run build
-
-# 5) Publicar
+# 8) Publicar artefactos
 Remove-Item "$wt\*" -Recurse -Force -ErrorAction SilentlyContinue
 Copy-Item .\dist\* $wt -Recurse -Force
 Copy-Item "$wt\index.html" "$wt\404.html" -Force
 New-Item -ItemType File -Path "$wt\.nojekyll" -Force | Out-Null
 
+# 9) Commit + push gh-pages
 git -C $wt add -A
-git -C $wt commit -m ("deploy: {0:yyyyMMddHHmmss}" -f (Get-Date)) 2>$null
+git -C $wt commit -m ("deploy: {0}" -f (Get-Date -Format 'yyyyMMddHHmmss')) 2>$null
 git -C $wt push origin gh-pages
+Ok "Desplegado a gh-pages"
 
-Write-Host "OK: main actualizado y gh-pages desplegado."
+# 10) Mostrar URL con cache-buster
+$ts = Get-Date -Format "yyyyMMddHHmmss"
+$URL = "https://frankweist.github.io/BricoFrank/?v=$ts"
+Ok "Abre: $URL"
