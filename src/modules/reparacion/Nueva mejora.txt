@@ -1,0 +1,13 @@
+quiero que me compiles un script para cambiar dos pestañas de la aplicacion que estoy haciendo, de la Pestaña Registros quiero que el desplegable Categoria se llame Aparato y que sea de texto libre, y de la Pestaña Presupuesto que se haga un calculo teniendo en cuenta los datos que se crearon en registro sobre el aparato, marca y modelo, teniendo en cuenta el daño descrito y el valor de las piezas, hayar un presupuesto aproximado o inicial de lo que puede costar la reparacion, esto se generaria con un boton de calcular presupuesto, tambien quiero la opcion de poder añadir mas de una pieza, aparte otro generador de estimacion de horas segun los datos obtenidos del registro del aparato.
+
+En resumen;
+
+El apartado horas igual por si queremos ponerlo manual, al lado un generador de horas estimadas segun el aparato y daño, si optamos por esta opcion modificara el dato que se pone en horas, este dato se tiene en cuenta en el calculo del presupuesto.
+
+Piezas: poder añadir mas de una pieza, estos datos se tendran en cuenta en el calculo del presupuesto, sin iva, solo lo que marque la pieza o piezas
+
+Precio del aparato nuevo: casilla que si se rellena tambien tendra valor en el calculo, estimando el valor del aparato nuevo y por consiguiente el valor de la reparacion en el calculo aprox de la reparacion.
+
+Precio de segunda mano, casilla que si se rellena marcara el tope maximo por el cual se debe fijar el precio de la reparacion, sin llegar a igualarlo, siempre por debajo.
+
+Boton de calculo aproximado, este boton sera el que active el calculo donde se tendra en cuenta, aparato, modelo, daño, piezas, horas de reparacion, precio nuevo( si lo ponemos), precio de segunda mano ( si lo ponemos)

@@ -1,62 +1,46 @@
-import { useEffect, useState } from 'react'
-import { Wrench, Moon, Sun, ClipboardList, Calculator, Hammer } from 'lucide-react'
-import type { Tab } from '../../App'
-import { initAutoSync, onSyncState, getSyncState } from '../../sync/autosync'
-
+﻿import { useEffect, useState } from 'react';
+import { Wrench, Moon, Sun, ClipboardList, Calculator, Hammer } from 'lucide-react';
+import type { Tab } from '../../App';
+import { initAutoSync, onSyncState, getSyncState } from '../../sync/autosync';
 import { Registro } from "../registro/Registro";
 import { Presupuesto } from "../presupuesto/Presupuesto";
 import { DetalleOrden } from "../reparacion/DetalleOrden";
 import { Historial } from "../historial/Historial";
-import { useSeleccion } from "../../store/seleccion";
-import { Listados } from "@core/data";
 
 export function Layout({
   tab, onTab, children,
 }: { tab: Tab; onTab: (t: Tab) => void; children: React.ReactNode }) {
+
   const [dark, setDark] = useState(() => localStorage.getItem('gr_dark') === '1');
   const [syncState, setSyncState] = useState(getSyncState());
 
-  const [vista, setVista] = useState<"registro" | "presupuesto" | "detalle" | "historial">("registro");
-  const { ordenId } = useSeleccion();
-  const [resumen, setResumen] = useState<{ codigo?: string; cliente?: string; equipo?: string }>({});
-
   useEffect(() => {
-    if (!ordenId) { setResumen({}); return; }
-    Listados.obtenerOrdenDetallada(ordenId).then(o => {
-      if (!o) return setResumen({});
-      setResumen({
-        codigo: o.codigo_orden,
-        cliente: o.cliente?.nombre,
-        equipo: o.aparato ? `${o.aparato.marca} ${o.aparato.modelo}` : undefined
-      });
-    });
-  }, [ordenId]);
-
-  useEffect(() => {
-    const handleSyncStateChange = (state: string) => {
-      setSyncState(state)
-    }
-    initAutoSync()
-    onSyncState(handleSyncStateChange)
-  }, [])
+    const handleSyncStateChange = (state: string) => setSyncState(state);
+    initAutoSync();
+    onSyncState(handleSyncStateChange);
+  }, []);
 
   return (
-    <div className="container space-y-4">
-      <header className="flex items-center justify-between">
-        <h1 className="h1">Gestor de Reparaciones</h1>
-        <nav className="tabs">
-          <button className={`tab ${vista === 'registro' ? 'tab-active' : ''}`} onClick={() => setVista("registro")}>Registro</button>
-          <button className={`tab ${vista === 'presupuesto' ? 'tab-active' : ''}`} onClick={() => setVista("presupuesto")}>Presupuesto</button>
-          <button className={`tab ${vista === 'detalle' ? 'tab-active' : ''}`} onClick={() => setVista("detalle")}>Reparación</button>
-          <button className={`tab ${vista === 'historial' ? 'tab-active' : ''}`} onClick={() => setVista("historial")}>Historial</button>
-        </nav>
-      </header>
-
-      {resumen.codigo && (
-        <div className="card text-sm">
-          <b>Orden activa:</b> {resumen.codigo} · <b>Cliente:</b> {resumen.cliente ?? "—"} · <b>Equipo:</b> {resumen.equipo ?? "—"}
+    <div className="min-h-screen grid grid-cols-1 lg:grid-cols-[240px_1fr] bg-white text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
+      {/* Sidebar */}
+      <aside className="hidden lg:flex lg:flex-col gap-2 border-r border-neutral-200/70 dark:border-neutral-800 p-4">
+        <div className="flex items-center gap-2 font-semibold text-lg">
+          <Wrench className="size-5" /> Gestor
         </div>
-      )}
+        <nav className="mt-4 grid gap-1">
+          <NavItem icon={ClipboardList} label="Registro" active={tab === 'registro'} onClick={() => onTab('registro')} />
+          <NavItem icon={ClipboardList} label="Órdenes" active={tab === 'ordenes'} onClick={() => onTab('ordenes')} />
+          <NavItem icon={Calculator} label="Presupuesto" active={tab === 'presupuesto'} onClick={() => onTab('presupuesto')} />
+          <NavItem icon={Hammer} label="Reparación" active={tab === 'reparacion'} onClick={() => onTab('reparacion')} />
+          <NavItem icon={Hammer} label="Historial" active={tab === 'historial'} onClick={() => onTab('historial')} />
+        </nav>
+        <div className="mt-auto pt-4 border-t border-neutral-200/70 dark:border-neutral-800">
+          <button className="btn btn-ghost w-full" onClick={() => setDark(v => !v)}>
+            {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
+            <span className="ml-2">{dark ? 'Modo claro' : 'Modo oscuro'}</span>
+          </button>
+        </div>
+      </aside>
 
       {/* Main */}
       <div className="flex flex-col min-h-screen">
@@ -70,30 +54,32 @@ export function Layout({
                 className={`tab ${syncState === 'idle' ? 'tab-active' : ''}`}
                 title={syncState}
               >
-                {syncState === 'idle' ? 'Sincronizado' : syncState === 'syncing' ? 'Sincronizando…' : syncState === 'offline' ? 'Offline' : 'Error'}
+                {syncState === 'idle'
+                  ? 'Sincronizado'
+                  : syncState === 'syncing'
+                  ? 'Sincronizando…'
+                  : syncState === 'offline'
+                  ? 'Offline'
+                  : 'Error'}
               </span>
               <button className={`tab ${tab === 'registro' ? 'tab-active' : ''}`} onClick={() => onTab('registro')}>Registro</button>
               <button className={`tab ${tab === 'ordenes' ? 'tab-active' : ''}`} onClick={() => onTab('ordenes')}>Órdenes</button>
               <button className={`tab ${tab === 'presupuesto' ? 'tab-active' : ''}`} onClick={() => onTab('presupuesto')}>Presupuesto</button>
               <button className={`tab ${tab === 'reparacion' ? 'tab-active' : ''}`} onClick={() => onTab('reparacion')}>Reparación</button>
+              <button className={`tab ${tab === 'historial' ? 'tab-active' : ''}`} onClick={() => onTab('historial')}>Historial</button>
               <button title="Tema" className="btn btn-ghost" onClick={() => setDark(v => !v)}>
                 {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
               </button>
             </div>
           </div>
         </header>
+
         <main className="max-w-6xl w-full mx-auto p-4">
-          <div className="grid gap-4">
-            {children}
-            {vista === "registro" && <section className="card"><Registro /></section>}
-            {vista === "presupuesto" && <section className="card"><Presupuesto /></section>}
-            {vista === "detalle" && <section className="card"><DetalleOrden /></section>}
-            {vista === "historial" && <section className="card"><Historial /></section>}
-          </div>
+          <div className="grid gap-4">{children}</div>
         </main>
       </div>
     </div>
-  )
+  );
 }
 
 function NavItem({
@@ -106,5 +92,5 @@ function NavItem({
     >
       <Icon className="size-4" /> <span>{label}</span>
     </button>
-  )
+  );
 }
