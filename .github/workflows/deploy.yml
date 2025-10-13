@@ -33,6 +33,9 @@ jobs:
 
       - name: Build project
         run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
       # Copiamos el build a una carpeta temporal para publicar
       - name: Prepare deployment folder
