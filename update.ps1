@@ -38,7 +38,8 @@ if (Test-Path $oldWorktreePath) {
 
 # Comprobar si el worktree actual es válido y existe
 $isValidWorktree = $false
-if (git worktree list -s | Select-String -Pattern "$wt") {
+
+if (git worktree list -s | Select-String -Pattern "$wt" -SimpleMatch) {
     $isValidWorktree = $true
 }
 
