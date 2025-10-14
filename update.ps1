@@ -98,8 +98,22 @@ if ($wtStatus) {
     # Crea un commit con timestamp
     git -C $wt commit -m ("deploy: {0:yyyyMMddHHmmss}" -f (Get-Date))
     Write-Host "Commit creado en gh-pages." -ForegroundColor Yellow
+
+    # Sincronizar antes de hacer push (por si acaso hay cambios remotos)
+    git -C $wt pull origin gh-pages 2>$null | Out-Null
+    
+    # Intentar push normal
+    try {
+        git -C $wt push origin gh-pages
+    }
+    catch {
+        # Si falla (non-fast-forward), usa force-with-lease para sobrescribir
+        Write-Host "ADVERTENCIA: Falló el push normal. Intentando push forzado (con lease)..." -ForegroundColor Red
+        git -C $wt push --force-with-lease origin gh-pages
+    }
+
 } else {
-    Write-Host "No hay cambios generados por la construcción. Saltando commit." -ForegroundColor Yellow
+    Write-Host "No hay cambios generados por la construcción. Saltando commit y push." -ForegroundColor Yellow
 }
 
 git -C $wt push origin gh-pages
