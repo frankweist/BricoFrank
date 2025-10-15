@@ -7,6 +7,25 @@ const ROW_ID = "default"; // puedes sustituirlo por tu UUID real si prefieres
 let syncState = "idle";
 let syncTimer: any = null;
 
+// 🔔 Lista de callbacks para notificar cuando el estado cambie
+const listeners: ((state: string) => void)[] = [];
+
+// ⚙️ Función interna para actualizar el estado y notificar a los oyentes
+function setSyncState(newState: string) {
+  syncState = newState;
+  listeners.forEach(callback => callback(newState));
+}
+
+// 🟢 Permite suscribirse a cambios de estado. (Esta es la función que faltaba)
+export function onSyncState(callback: (state: string) => void) {
+  listeners.push(callback);
+  // Retorna una función para desuscribirse
+  return () => {
+    const index = listeners.indexOf(callback);
+    if (index > -1) listeners.splice(index, 1);
+  };
+}
+
 export function getSyncState() {
   return syncState;
 }
@@ -14,7 +33,7 @@ export function getSyncState() {
 // 🟢 Sube la base de datos local a Supabase
 export async function syncPush() {
   try {
-    syncState = "syncing";
+    setSyncState("syncing"); // USAMOS LA FUNCIÓN, NO LA ASIGNACIÓN DIRECTA
     console.log("📤 Subiendo backup a Supabase...");
 
     const clientes = await db.clientes.toArray();
@@ -30,17 +49,17 @@ export async function syncPush() {
     if (error) throw error;
 
     console.log("✅ Backup subido correctamente.");
-    syncState = "ok";
+    setSyncState("ok"); // USAMOS LA FUNCIÓN
   } catch (err: any) {
     console.error("❌ Error en syncPush:", err.message);
-    syncState = "error";
+    setSyncState("error"); // USAMOS LA FUNCIÓN
   }
 }
 
 // 🔵 Descarga los datos desde Supabase a la base local
 export async function syncPull() {
   try {
-    syncState = "syncing";
+    setSyncState("syncing"); // USAMOS LA FUNCIÓN
     console.log("⬇️ Descargando backup desde Supabase...");
 
     const { data, error } = await supa
@@ -66,10 +85,10 @@ export async function syncPull() {
     });
 
     console.log("✅ Datos restaurados desde Supabase.");
-    syncState = "ok";
+    setSyncState("ok"); // USAMOS LA FUNCIÓN
   } catch (err: any) {
     console.error("❌ Error en syncPull:", err.message);
-    syncState = "error";
+    setSyncState("error"); // USAMOS LA FUNCIÓN
   }
 }
 
