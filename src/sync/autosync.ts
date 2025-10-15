@@ -59,19 +59,26 @@ export async function syncPush() {
 // 🔵 Descarga los datos desde Supabase a la base local
 export async function syncPull() {
   try {
-    setSyncState("syncing"); // USAMOS LA FUNCIÓN
+    setSyncState("syncing");
     console.log("⬇️ Descargando backup desde Supabase...");
 
     const { data, error } = await supa
       .from("backups")
       .select("payload")
-      .eq("id", ROW_ID)
-      .single();
+      .eq("id", ROW_ID); // <--- QUITAMOS .single()
 
     if (error) throw error;
-    if (!data?.payload) throw new Error("Sin payload válido en backup remoto");
 
-    const { clientes, ordenes, adjuntos } = data.payload;
+    // 💡 Lógica corregida: Si data es vacío (no hay backup), salimos.
+    const backupData = data?.[0]?.payload;
+
+    if (!backupData) {
+      console.log("⚠️ No se encontró backup en Supabase para este ID. Inicializando vacío.");
+      setSyncState("ok");
+      return; // Salimos graciosamente
+    }
+
+    const { clientes, ordenes, adjuntos } = backupData;
 
     // Limpia e inserta los datos locales
     await db.transaction("rw", db.clientes, db.ordenes, db.adjuntos, async () => {
@@ -85,13 +92,12 @@ export async function syncPull() {
     });
 
     console.log("✅ Datos restaurados desde Supabase.");
-    setSyncState("ok"); // USAMOS LA FUNCIÓN
+    setSyncState("ok");
   } catch (err: any) {
     console.error("❌ Error en syncPull:", err.message);
-    setSyncState("error"); // USAMOS LA FUNCIÓN
+    setSyncState("error");
   }
 }
-
 // 🔁 Inicializa el autosync automático
 export function initAutoSync(intervalMs = 120000) {
   if (syncTimer) clearInterval(syncTimer);
