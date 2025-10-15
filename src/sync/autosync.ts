@@ -110,4 +110,6 @@ export function initAutoSync(intervalMs = 120000) {
   syncTimer = setInterval(() => {
     if (syncState !== "syncing") syncPush();
   }, intervalMs);
+  // 💡 LÍNEA A AÑADIR (Solo para desarrollo y consola)
+  (window as any).syncPush = syncPush;
 }
