@@ -10,7 +10,7 @@ permissions:
   pages: write
   id-token: write
 
-# NOTA: Se eliminó la sección 'defaults' para evitar conflictos con el 'working-directory'.
+# NOTA IMPORTANTE: Se ha ELIMINADO la sección 'defaults' que causaba el error 'No such file or directory'.
 
 jobs:
   build-and-deploy:
@@ -26,13 +26,13 @@ jobs:
           node-version: 18
 
       - name: Install dependencies
-        # Se especifica la carpeta de trabajo para asegurar que 'npm ci' encuentre package.json
+        # Se especifica la carpeta de trabajo, ya que no hay 'defaults'
         working-directory: ./apps/web
         run: npm ci
 
       # 🔧 Build con las variables de entorno necesarias para Supabase
       - name: Build project
-        # Se especifica la carpeta de trabajo para asegurar que 'npm run build' se ejecute correctamente
+        # Se especifica la carpeta de trabajo
         working-directory: ./apps/web
         run: npm run build
         env:
@@ -43,16 +43,15 @@ jobs:
         # Se especifica la carpeta de trabajo
         working-directory: ./apps/web
         run: |
-          # Eliminar el contenido viejo en la carpeta _pages del nivel superior (../)
+          # El 'rm -rf ../_pages/*' ahora es seguro porque el working-directory es 'apps/web'
           rm -rf ../_pages/*
-          # Copiar los nuevos archivos compilados (dist) a la carpeta _pages
           cp -r ./dist/* ../_pages/
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          # El public_dir es la carpeta _pages que se creó en la raíz del repositorio
+          # El public_dir está en la raíz del repositorio, no dentro de apps/web
           publish_dir: ./_pages 
           publish_branch: gh-pages
           user_name: 'github-actions[bot]'

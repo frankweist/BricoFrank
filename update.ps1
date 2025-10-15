@@ -1,8 +1,8 @@
 ﻿param([string]$m = "chore: update")
-$ErrorActionPreference = "Stop" # Detiene el script ante cualquier error fatal
+$ErrorActionPreference = "Stop"
 Set-Location -LiteralPath $PSScriptRoot
 
-# --- 1. Sincronizar y subir la rama 'main' ---
+# --- 1. Sincronizando y subiendo la rama 'main' ---
 Write-Host "--- 1. Sincronizando y subiendo la rama 'main'..." -ForegroundColor Green
 
 git switch main
