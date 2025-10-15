@@ -24,21 +24,26 @@ jobs:
           node-version: 18
 
       - name: Install dependencies
-        # FIX: Eliminamos el punto inicial para evitar la confusión de la ruta absoluta del runner
-        working-directory: apps/web 
-        run: npm ci
+        # FIX: Navegación explícita con 'cd' en el shell
+        run: |
+          cd apps/web 
+          npm ci
 
       # 🔧 Build con las variables de entorno necesarias para Supabase
       - name: Build project
-        working-directory: apps/web
-        run: npm run build
+        # FIX: Navegación explícita con 'cd'
+        run: |
+          cd apps/web
+          npm run build
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
       - name: Prepare deployment folder
-        working-directory: apps/web
+        # FIX: Navegación explícita con 'cd'
         run: |
+          cd apps/web
+          # El 'rm -rf ../_pages/*' ahora es seguro porque estamos en 'apps/web'
           rm -rf ../_pages/*
           cp -r ./dist/* ../_pages/
 
