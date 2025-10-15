@@ -100,7 +100,7 @@ if ($wtStatus) {
     Write-Host "Commit creado en gh-pages." -ForegroundColor Yellow
 
     # Sincronizar antes de hacer push (por si acaso hay cambios remotos)
-    git -C $wt pull origin gh-pages 2>$null | Out-Null
+    git -C $wt pull origin gh-pages *>$null
     
     # Intentar push normal
     try {

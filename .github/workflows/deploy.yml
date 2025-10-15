@@ -10,10 +10,9 @@ permissions:
   pages: write
   id-token: write
 
-# 🔧 Ya no usamos ./apps/web — todo se ejecuta desde la raíz
 defaults:
   run:
-    working-directory: ./
+    working-directory: ./apps/web
 
 jobs:
   build-and-deploy:
@@ -31,19 +30,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # 🔧 Build con las variables de entorno necesarias para Supabase
       - name: Build project
         run: npm run build
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
-      # Copiamos el build a una carpeta temporal para publicar
       - name: Prepare deployment folder
         run: |
-          mkdir -p _pages
-          cp -r dist/* _pages/
-          cp _pages/index.html _pages/404.html
-          touch _pages/.nojekyll
+          rm -rf ../_pages/*
+          cp -r ./dist/* ../_pages/
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
