@@ -1,86 +1,88 @@
 ﻿import { supa } from "../data/supabase";
-// @protected-import
 import { db } from "../data/db";
 
-export type SyncState = "idle"|"syncing"|"offline"|"error";
-let state: SyncState = "idle";
-let listeners: Array<(s:SyncState)=>void> = [];
-const setState = (s:SyncState)=>{ state=s; listeners.forEach(l=>l(s)); };
-export const onSyncState = (cb:(s:SyncState)=>void)=>{ listeners.push(cb); return ()=>{listeners = listeners.filter(x=>x!==cb);} };
-export const getSyncState = ()=> state;
+// 🆔 Identificador único de backup principal
+const ROW_ID = "default"; // puedes sustituirlo por tu UUID real si prefieres
 
-const ROW_ID = "277527f0-53d3-4334-ae97-4ce2a1d9de9e";
+let syncState = "idle";
+let syncTimer: any = null;
 
-async function dumpDB(){
-  const [clientes,equipos,ordenes,eventos,piezas,adjuntos] = await Promise.all([
-    db.clientes.toArray(), 
-    db.equipos.toArray(), 
-    db.ordenes.toArray(), 
-    db.eventos.toArray(), 
-    db.piezas.toArray(),
-    db.adjuntos.toArray()  // agregado adjuntos
-  ]);
-  return { clientes,equipos,ordenes,eventos,piezas,adjuntos };
-}
-async function importDB(data:any){
-  if(!data) return;
-  await db.transaction("rw", db.clientes, db.equipos, db.ordenes, db.eventos, db.piezas, db.adjuntos, async ()=>{
-    await db.clientes.clear(); await db.equipos.clear(); await db.ordenes.clear(); await db.eventos.clear(); await db.piezas.clear(); await db.adjuntos.clear();
-    if(data.clientes?.length) await db.clientes.bulkAdd(data.clientes);
-    if(data.equipos?.length)  await db.equipos.bulkAdd(data.equipos);
-    if(data.ordenes?.length)  await db.ordenes.bulkAdd(data.ordenes);
-    if(data.eventos?.length)  await db.eventos.bulkAdd(data.eventos);
-    if(data.piezas?.length)   await db.piezas.bulkAdd(data.piezas);
-    if(data.adjuntos?.length) await db.adjuntos.bulkAdd(data.adjuntos);
-  });
+export function getSyncState() {
+  return syncState;
 }
 
-export async function pullNow(){
-  if(!supa){ return; }
-  try{
-    setState("syncing");
-    const { data, error } = await supa.from("backups").select("*").eq("id", ROW_ID).single();
-    if(error && (error as any).code!=="PGRST116"){ throw error; }
-    const remoteTs = data?.updated_at ? new Date(data.updated_at).getTime() : 0;
-    const localTs  = Number(localStorage.getItem("gr_lastSyncAt")||"0");
-    if(remoteTs > localTs && data?.payload){
-      await importDB(data.payload);
-      localStorage.setItem("gr_lastSyncAt", String(remoteTs));
-    }
-    setState("idle");
-  }catch(e:any){
-    setState(e?.message?.includes("Failed to fetch")?"offline":"error");
-  }
-}
-
-export async function pushNow() {
-  if (!supa) { return; }
+// 🟢 Sube la base de datos local a Supabase
+export async function syncPush() {
   try {
-    setState("syncing");
-    const payload = await dumpDB();
-    const nowIso = new Date().toISOString();
-    const { error } = await supa.from("backups").upsert(
-      { id: ROW_ID, payload, fecha: nowIso },
-      { onConflict: "id" }
-    );
-    if (error) { throw error; }
-    localStorage.setItem("gr_lastSyncAt", String(new Date(nowIso).getTime()));
-    setState("idle");
-  } catch (e: any) {
-    setState(e?.message?.includes("Failed to fetch") ? "offline" : "error");
+    syncState = "syncing";
+    console.log("📤 Subiendo backup a Supabase...");
+
+    const clientes = await db.clientes.toArray();
+    const ordenes = await db.ordenes.toArray();
+    const adjuntos = await db.adjuntos.toArray();
+
+    const payload = { clientes, ordenes, adjuntos, fecha: new Date().toISOString() };
+
+    const { error } = await supa
+      .from("backups")
+      .upsert([{ id: ROW_ID, fecha: new Date().toISOString(), payload }], { onConflict: "id" });
+
+    if (error) throw error;
+
+    console.log("✅ Backup subido correctamente.");
+    syncState = "ok";
+  } catch (err: any) {
+    console.error("❌ Error en syncPush:", err.message);
+    syncState = "error";
   }
 }
 
+// 🔵 Descarga los datos desde Supabase a la base local
+export async function syncPull() {
+  try {
+    syncState = "syncing";
+    console.log("⬇️ Descargando backup desde Supabase...");
 
-let timerStarted = false;
-export function initAutoSync(){
-  if(timerStarted) return;
-  timerStarted = true;
-  pullNow();
-  setInterval(()=>{ pushNow(); }, 60_000);
-  window.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="hidden"){ pushNow(); } });
+    const { data, error } = await supa
+      .from("backups")
+      .select("payload")
+      .eq("id", ROW_ID)
+      .single();
+
+    if (error) throw error;
+    if (!data?.payload) throw new Error("Sin payload válido en backup remoto");
+
+    const { clientes, ordenes, adjuntos } = data.payload;
+
+    // Limpia e inserta los datos locales
+    await db.transaction("rw", db.clientes, db.ordenes, db.adjuntos, async () => {
+      await db.clientes.clear();
+      await db.ordenes.clear();
+      await db.adjuntos.clear();
+
+      await db.clientes.bulkAdd(clientes || []);
+      await db.ordenes.bulkAdd(ordenes || []);
+      await db.adjuntos.bulkAdd(adjuntos || []);
+    });
+
+    console.log("✅ Datos restaurados desde Supabase.");
+    syncState = "ok";
+  } catch (err: any) {
+    console.error("❌ Error en syncPull:", err.message);
+    syncState = "error";
+  }
 }
 
+// 🔁 Inicializa el autosync automático
+export function initAutoSync(intervalMs = 120000) {
+  if (syncTimer) clearInterval(syncTimer);
+  console.log("⚙️ AutoSync activado cada", intervalMs / 1000, "segundos");
 
+  // Al iniciar, hacer pull
+  syncPull();
 
-
+  // Luego sincronizar periódicamente (push)
+  syncTimer = setInterval(() => {
+    if (syncState !== "syncing") syncPush();
+  }, intervalMs);
+}
