@@ -2,7 +2,7 @@
 import { db } from "../data/db";
 
 // 🆔 Identificador único de backup principal
-const ROW_ID = "default"; // puedes sustituirlo por tu UUID real si prefieres
+const ROW_ID = "2f647c2d-8b01-447a-8959-1e35520937a6"; // puedes sustituirlo por tu UUID real si prefieres
 
 let syncState = "idle";
 let syncTimer: any = null;
