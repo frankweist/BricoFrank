@@ -26,6 +26,16 @@ export class GRDB extends Dexie {
       piezas:  'id, ordenId, estado',
       adjuntos:'id, ordenId, fecha'
     })
+    // 🚀 NUEVA VERSIÓN 3: Se añaden las columnas faltantes a la tabla 'ordenes'
+    this.version(3).stores({
+      clientes: 'id, nombre, telefono, fecha_alta',
+      equipos: 'id, clienteId, marca, modelo, fecha_recepcion',
+      // Se añaden 'cliente', 'telefono', y 'equipo'
+      ordenes: 'id, codigo, equipoId, estado, creada, actualizada, cliente, telefono, equipo', 
+      eventos: 'id, ordenId, fecha',
+      piezas:  'id, ordenId, estado',
+      adjuntos:'id, ordenId, fecha'
+    })
   }
 }
 
