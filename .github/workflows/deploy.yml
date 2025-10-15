@@ -24,26 +24,23 @@ jobs:
           node-version: 18
 
       - name: Install dependencies
-        # FIX DEFINITIVO: Navegación explícita a la ruta absoluta
+        # ÚLTIMA CORRECCIÓN DE RUTA: Navegación relativa simple
         run: |
-          cd $GITHUB_WORKSPACE/apps/web 
+          cd apps/web 
           npm ci
 
       # 🔧 Build con las variables de entorno necesarias para Supabase
       - name: Build project
-        # Navegación explícita a la ruta absoluta
         run: |
-          cd $GITHUB_WORKSPACE/apps/web
+          cd apps/web
           npm run build
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
       - name: Prepare deployment folder
-        # Navegación explícita a la ruta absoluta
         run: |
-          cd $GITHUB_WORKSPACE/apps/web
-          # El 'rm -rf ../_pages/*' ahora es seguro porque estamos en 'apps/web'
+          cd apps/web
           rm -rf ../_pages/*
           cp -r ./dist/* ../_pages/
 
