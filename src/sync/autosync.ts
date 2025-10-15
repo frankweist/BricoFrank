@@ -6,9 +6,13 @@ const ROW_ID = "2f647c2d-8b01-447a-8959-1e35520937a6";
 
 let syncState = "idle";
 let syncTimer: any = null;
-let syncInitialized = false; // Nuevo: Flag para saber si se ha corrido el sync inicial
+let syncInitialized = false; 
+let pushQueueTimer: any = null; // Timer para el debounced push
 
-// ... (getSyncState y onSyncState permanecen sin cambios) ...
+
+// ----------------------------------------------------
+// MANEJO DE ESTADO DE SINCRONIZACIÓN
+// ----------------------------------------------------
 
 export function getSyncState() {
   return syncState;
@@ -30,9 +34,50 @@ function setSyncState(state: string) {
 }
 
 
+// ----------------------------------------------------
+// SINCRONIZACIÓN MANUAL Y POR EVENTO
+// ----------------------------------------------------
+
+/**
+ * Pone en cola una subida de datos con un pequeño retraso (debounce).
+ * Se usa en db.ts (db.on("changes")).
+ */
+export function queuePushToSupabase() {
+    if (pushQueueTimer) {
+        clearTimeout(pushQueueTimer);
+    }
+    // Espera 2 segundos después del último cambio antes de hacer el push.
+    pushQueueTimer = setTimeout(() => {
+        if (syncState !== "syncing") {
+            syncPush();
+        }
+    }, 2000); 
+}
+
+/**
+ * Fuerza una sincronización completa (Push + Pull). Usada por el botón manual.
+ */
+export async function forceSync() {
+    setSyncState("syncing"); 
+    console.log("⚙️ Sincronización manual forzada...");
+    try {
+        await syncPush(); // 1. Subir cambios locales
+        await syncPull(); // 2. Descargar cambios de la nube
+    } catch (error) {
+        console.error("❌ Error en sincronización forzada:", error);
+        setSyncState("error");
+        // Volvemos a lanzar el error para que el componente que lo llama lo maneje
+        throw error; 
+    }
+}
+
+
+// ----------------------------------------------------
+// LÓGICA DE SINCRONIZACIÓN EXISTENTE
+// ----------------------------------------------------
+
 // 🟢 Sube la base de datos local a Supabase
 export async function syncPush() {
-  // ... (Esta función permanece como la versión que sube clientes, equipos, y ordenes, y AÑADE la 'fecha' al payload) ...
   try {
     setSyncState("syncing");
     console.log("📤 Subiendo backup a Supabase...");
@@ -75,11 +120,11 @@ export async function syncPull() {
 
     const backupData = data?.payload as any;
 
-    // Lógica 1: No hay backup en Supabase. No hacemos nada.
+    // Lógica 1: No hay backup en Supabase.
     if (!backupData || !backupData.fecha) {
       console.log("⚠️ No se encontró backup válido en Supabase. Se mantendrán los datos locales.");
       setSyncState("ok");
-      return; // 🛑 CLAVE: SI NO HAY BACKUP REMOTO, NO BORRAMOS LOS DATOS LOCALES.
+      return; 
     }
 
     const remoteDate = new Date(backupData.fecha);
@@ -125,10 +170,24 @@ export function initAutoSync(intervalMs = 120000) {
   if (syncTimer) clearInterval(syncTimer);
   console.log("⚙️ AutoSync activado cada", intervalMs / 1000, "segundos");
   
-  // 🛑 CLAVE: Solo hacemos el Pull si no hemos inicializado el sync.
   if (!syncInitialized) {
+      
       syncPull().then(async () => {
-          // Si no hay backup remoto, forzamos la creación del primero desde la app de PC.
+          // 🔑 CRÍTICO: Adjuntar el listener de Dexie aquí DESPUÉS de la primera operación de DB.
+          db.on("changes", (changes) => {
+              if (!navigator.onLine) return; 
+
+              const relevantChanges = changes.some(c => 
+                  c.table === "clientes" || 
+                  c.table === "ordenes" || 
+                  c.table === "equipos" 
+              );
+
+              if (relevantChanges) {
+                  queuePushToSupabase(); 
+              }
+          });
+
           const { data } = await supa.from("backups").select("id").eq("id", ROW_ID);
           if (!data || data.length === 0) {
               console.log("🔥 No hay backup remoto, forzando un Push inicial...");
@@ -138,8 +197,8 @@ export function initAutoSync(intervalMs = 120000) {
       });
   }
 
-  // Luego sincronizar periódicamente (push)
+  // Se sincroniza periódicamente (hace PULL, que desencadena lógica de PUSH si es necesario)
   syncTimer = setInterval(() => {
-    if (syncState !== "syncing") syncPush();
+    if (syncState !== "syncing") syncPull(); 
   }, intervalMs);
 }

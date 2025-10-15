@@ -1,6 +1,8 @@
 ﻿import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../data/db'
+import { ChevronDown, ChevronRight } from 'lucide-react'
+import { forceSync } from '../../sync/autosync'; // 💡 Importar función de sincronización
 
 type OrdenRow = {
   id: string
@@ -13,6 +15,15 @@ type OrdenRow = {
   actualizada: string
 }
 
+type GrupoCliente = {
+  clienteId: string
+  nombre: string
+  telefono: string
+  totalOrdenes: number
+  ordenes: OrdenRow[]
+}
+
+// Funciones de utilidad CSV/JSON
 function toCSV(rows: OrdenRow[]) {
   const esc = (s: string) => `"${(s || '').replace(/"/g, '""')}"`
   const head = ['ID', 'Código', 'Estado', 'Cliente', 'Teléfono', 'Equipo', 'Creada', 'Actualizada']
@@ -36,86 +47,137 @@ async function pickJSON(): Promise<any | null> {
     i.click()
   })
 }
+// ----------------------------------------------------
+
 
 export function Ordenes({ onOpen }: { onOpen: (id: string) => void }) {
-  const clientes = useLiveQuery(() => db.clientes.toArray(), [])
-  const equipos = useLiveQuery(() => db.equipos.toArray(), [])
-  const ordenes = useLiveQuery(() => db.ordenes.toArray(), [])
-
   const [q, setQ] = useState('')
   const [estado, setEstado] = useState<'todos' | 'recepcion' | 'diagnostico' | 'reparacion' | 'listo' | 'entregado'>('todos')
   const [desde, setDesde] = useState('')
   const [hasta, setHasta] = useState('')
   const [ordenar, setOrdenar] = useState<'creada_desc' | 'creada_asc' | 'act_desc' | 'act_asc'>('act_desc')
+  const [expandedClienteId, setExpandedClienteId] = useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false); // 💡 Estado para el botón de sincronización
 
-  const rows = useMemo<OrdenRow[]>(() => {
-    if (!clientes || !equipos || !ordenes) return []
-    const byCliente = new Map(clientes.map(c => [c.id, c]))
-    const byEquipo = new Map(equipos.map(e => [e.id, e]))
-    return ordenes.map(o => {
-      const eq = byEquipo.get(o.equipoId)
-      const cl = eq ? byCliente.get(eq.clienteId) : undefined
-      return {
+  const allOrdenes = useLiveQuery(() => db.ordenes.toArray(), []);
+  
+  const grupos = useMemo<GrupoCliente[]>(() => {
+    if (!allOrdenes) return []
+    
+    const gruposMap: Record<string, GrupoCliente> = {}
+
+    allOrdenes.forEach(o => {
+      // 🔑 CRÍTICO: Filtra órdenes que no tienen los campos redundantes (las órdenes viejas)
+      if (!o.cliente || !o.telefono || !o.equipo) {
+        console.warn("Orden ignorada por falta de campos redundantes:", o.id);
+        return; 
+      }
+      
+      // Usamos una clave única para la agrupación (nombre+telefono)
+      const clienteId = o.cliente + o.telefono; 
+
+      const row: OrdenRow = {
         id: o.id,
         codigo: o.codigo,
         estado: o.estado,
-        cliente: cl?.nombre || '',
-        telefono: cl?.telefono || '',
-        equipo: eq ? `${eq.categoria} ${eq.marca} ${eq.modelo}` : '',
+        cliente: o.cliente, // Se usan los campos redundantes
+        telefono: o.telefono, // Se usan los campos redundantes
+        equipo: o.equipo, // Se usan los campos redundantes
         creada: o.creada,
         actualizada: o.actualizada
       }
-    })
-  }, [clientes, equipos, ordenes])
 
-  const filtered = useMemo(() => {
+      if (!gruposMap[clienteId]) {
+        gruposMap[clienteId] = {
+          clienteId,
+          nombre: row.cliente,
+          telefono: row.telefono,
+          totalOrdenes: 0,
+          ordenes: []
+        };
+      }
+      
+      gruposMap[clienteId].ordenes.push(row);
+      gruposMap[clienteId].totalOrdenes++;
+    });
+    
+    // ... (El resto de la lógica de ordenamiento y filtrado se mantiene) ...
+
+    let list = Object.values(gruposMap);
+
     const t = q.trim().toLowerCase()
-    let list = rows
-    if (t) {
-      list = list.filter(r =>
-        r.codigo.toLowerCase().includes(t) ||
-        r.cliente.toLowerCase().includes(t) ||
-        r.telefono.toLowerCase().includes(t) ||
-        r.equipo.toLowerCase().includes(t) ||
-        r.estado.toLowerCase().includes(t)
-      )
-    }
-    if (estado !== 'todos') list = list.filter(r => r.estado === estado)
-    if (desde) { const d = new Date(desde); list = list.filter(r => new Date(r.creada) >= d) }
-    if (hasta) { const h = new Date(hasta); h.setHours(23, 59, 59, 999); list = list.filter(r => new Date(r.creada) <= h) }
     const by = {
       creada_desc: (a: OrdenRow, b: OrdenRow) => new Date(b.creada).getTime() - new Date(a.creada).getTime(),
       creada_asc: (a: OrdenRow, b: OrdenRow) => new Date(a.creada).getTime() - new Date(b.creada).getTime(),
       act_desc: (a: OrdenRow, b: OrdenRow) => new Date(b.actualizada).getTime() - new Date(a.actualizada).getTime(),
       act_asc: (a: OrdenRow, b: OrdenRow) => new Date(a.actualizada).getTime() - new Date(b.actualizada).getTime(),
     }[ordenar]
-    return [...list].sort(by)
-  }, [rows, q, estado, desde, hasta, ordenar])
 
-  async function exportCSV() {
-    const csv = toCSV(filtered)
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+    list = list.filter(grupo => {
+        const ordenesFiltradas = grupo.ordenes.filter(r => {
+            let matchesEstado = (estado === 'todos' || r.estado === estado);
+            let matchesDesde = (desde ? new Date(r.creada) >= new Date(desde) : true);
+            let matchesHasta = (hasta ? (new Date(r.creada).setHours(23, 59, 59, 999)) >= (new Date(hasta).getTime()) : true);
+            
+            return matchesEstado && matchesDesde && matchesHasta;
+        }).sort(by);
+        
+        const matchesClient = grupo.nombre.toLowerCase().includes(t) || grupo.telefono.includes(t);
+        const matchesOrder = ordenesFiltradas.some(r =>
+            r.codigo.toLowerCase().includes(t) || r.equipo.toLowerCase().includes(t)
+        );
+        
+        grupo.ordenes = ordenesFiltradas;
+        
+        return (matchesClient || matchesOrder) && ordenesFiltradas.length > 0;
+    });
+
+    if (expandedClienteId && !list.some(g => g.clienteId === expandedClienteId)) {
+        setExpandedClienteId(null);
+    }
+    
+    return list
+  }, [allOrdenes, q, estado, desde, hasta, ordenar, expandedClienteId])
+
+
+  // Función exportCSV
+  function exportCSV() {
+    const allRows: OrdenRow[] = grupos.flatMap(g => g.ordenes)
+    
+    if (allRows.length === 0) {
+      alert('No hay órdenes para exportar.')
+      return
+    }
+
+    const csv = toCSV(allRows)
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
-    a.href = url; a.download = 'ordenes.csv'; a.click()
+    a.href = url
+    a.download = `ordenes-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
     URL.revokeObjectURL(url)
   }
 
+  // Función importJSON
   async function importJSON() {
+    if (!confirm('¿Estás seguro de que quieres importar datos? Esto podría añadir o sobrescribir datos si los IDs coinciden.')) return
     const data = await pickJSON()
     if (!data) return
-    await db.transaction('rw', db.clientes, db.equipos, db.ordenes, db.eventos, db.piezas, db.adjuntos, async () => {
-      await db.clientes.clear(); await db.equipos.clear()
-      await db.ordenes.clear(); await db.eventos.clear(); await db.piezas.clear()
-      if (db.adjuntos) await db.adjuntos.clear()
-      await db.clientes.bulkAdd(data.clientes || [])
-      await db.equipos.bulkAdd(data.equipos || [])
-      await db.ordenes.bulkAdd(data.ordenes || [])
-      await db.eventos.bulkAdd(data.eventos || [])
-      if (data.piezas) await db.piezas.bulkAdd(data.piezas)
-      if (data.adjuntos && db.adjuntos) await db.adjuntos.bulkAdd(data.adjuntos)
-    })
-    alert('Importación completada')
+    
+    try {
+      await db.transaction('rw', db.clientes, db.equipos, db.ordenes, db.eventos, db.piezas, db.adjuntos, async () => {
+        if (data.clientes) await db.clientes.bulkAdd(data.clientes).catch(() => console.warn('Advertencia: Algunos clientes ya existían o tenían un ID repetido.'))
+        if (data.equipos) await db.equipos.bulkAdd(data.equipos).catch(() => console.warn('Advertencia: Algunos equipos ya existían o tenían un ID repetido.'))
+        if (data.ordenes) await db.ordenes.bulkAdd(data.ordenes).catch(() => console.warn('Advertencia: Algunas órdenes ya existían o tenían un ID repetido.'))
+        if (data.eventos) await db.eventos.bulkAdd(data.eventos).catch(() => console.warn('Advertencia: Algunos eventos ya existían o tenían un ID repetido.'))
+        if (data.piezas) await db.piezas.bulkAdd(data.piezas).catch(() => console.warn('Advertencia: Algunas piezas ya existían o tenían un ID repetido.'))
+        if (data.adjuntos) await db.adjuntos.bulkAdd(data.adjuntos).catch(() => console.warn('Advertencia: Algunos adjuntos ya existían o tenían un ID repetido.'))
+      })
+      alert('Datos importados correctamente.')
+    } catch (e: any) {
+      alert(`Error al importar datos: ${e.message}`)
+    }
   }
 
   async function eliminarOrden(id: string) {
@@ -129,10 +191,23 @@ export function Ordenes({ onOpen }: { onOpen: (id: string) => void }) {
     alert('Orden eliminada correctamente')
   }
 
+  // 💡 NUEVO: Función para sincronización manual
+  async function handleSync() {
+    setIsSyncing(true);
+    try {
+      await forceSync(); 
+    } catch (error) {
+      alert('Error al sincronizar. Revisa la consola y la conexión.');
+    } finally {
+      setIsSyncing(false); 
+    }
+  }
+
   return (
     <section className="grid gap-3">
       <div className="card"><div className="card-body">
         <div className="grid lg:grid-cols-5 gap-2">
+          {/* ... (Filtros y inputs) ... */}
           <input className="input" placeholder="Buscar por código, cliente, teléfono o equipo" value={q} onChange={e => setQ(e.target.value)} />
           <select className="input" value={estado} onChange={e => setEstado(e.target.value as any)}>
             <option value="todos">Todos</option>
@@ -155,42 +230,53 @@ export function Ordenes({ onOpen }: { onOpen: (id: string) => void }) {
         <div className="mt-3 flex gap-2">
           <button className="btn" onClick={exportCSV}>Exportar CSV</button>
           <button className="btn" onClick={importJSON}>Importar JSON</button>
+          
+          {/* 🔑 BOTÓN DE SINCRONIZACIÓN MANUAL */}
+          <button 
+            className="btn btn-secondary" 
+            onClick={handleSync}
+            disabled={isSyncing}
+          >
+            {isSyncing ? 'Sincronizando...' : 'Sincronizar ahora'}
+          </button>
         </div>
       </div></div>
-
-      <div className="card"><div className="card-body">
+      
+      {/* ... (Tabla de Grupos) ... */}
+      <div className="card"><div className="card-body p-0">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="text-left opacity-70">
-              <tr>
-                <th className="py-2 pr-3">Código</th>
-                <th className="py-2 pr-3">Cliente</th>
-                <th className="py-2 pr-3">Teléfono</th>
-                <th className="py-2 pr-3">Equipo</th>
-                <th className="py-2 pr-3">Estado</th>
-                <th className="py-2 pr-3">Creada</th>
-                <th className="py-2 pr-3">Actualizada</th>
-                <th className="py-2"></th>
-              </tr>
+            <thead>
+              {/* Encabezados de la tabla */}
             </thead>
             <tbody>
-              {filtered.map(r => (
-                <tr key={r.id} className="border-t border-neutral-200/70 dark:border-neutral-800">
-                  <td className="py-2 pr-3">{r.codigo}</td>
-                  <td className="py-2 pr-3">{r.cliente}</td>
-                  <td className="py-2 pr-3">{r.telefono}</td>
-                  <td className="py-2 pr-3">{r.equipo}</td>
-                  <td className="py-2 pr-3">{r.estado}</td>
-                  <td className="py-2 pr-3">{new Date(r.creada).toLocaleString()}</td>
-                  <td className="py-2 pr-3">{new Date(r.actualizada).toLocaleString()}</td>
-                  <td className="py-2 flex gap-2">
-                    <button className="btn btn-primary" onClick={() => onOpen(r.id)}>Abrir</button>
-                    <button className="btn" onClick={() => eliminarOrden(r.id)}>Eliminar</button>
-                  </td>
-                </tr>
+              {grupos.map(grupo => (
+                <>
+                  <tr key={grupo.clienteId} className="bg-neutral-100 dark:bg-neutral-800 font-semibold cursor-pointer" onClick={() => setExpandedClienteId(e => e === grupo.clienteId ? null : grupo.clienteId)}>
+                    <td className="py-2 px-3 flex items-center gap-2" colSpan={8}>
+                      {expandedClienteId === grupo.clienteId ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+                      Cliente: {grupo.nombre} ({grupo.telefono}) | Órdenes: {grupo.ordenes.length}
+                    </td>
+                  </tr>
+                  {expandedClienteId === grupo.clienteId && grupo.ordenes.map(r => (
+                    <tr key={r.id} className="border-t border-neutral-200/70 dark:border-neutral-800">
+                      <td className="py-2 pr-3 pl-8">{r.codigo}</td>
+                      <td className="py-2 pr-3">{r.cliente}</td>
+                      <td className="py-2 pr-3">{r.telefono}</td>
+                      <td className="py-2 pr-3">{r.equipo}</td>
+                      <td className="py-2 pr-3">{r.estado}</td>
+                      <td className="py-2 pr-3">{new Date(r.creada).toLocaleString()}</td>
+                      <td className="py-2 pr-3">{new Date(r.actualizada).toLocaleString()}</td>
+                      <td className="py-2 flex gap-2">
+                        <button className="btn btn-primary" onClick={() => onOpen(r.id)}>Abrir</button>
+                        <button className="btn" onClick={() => eliminarOrden(r.id)}>Eliminar</button>
+                      </td>
+                    </tr>
+                  ))}
+                </>
               ))}
-              {filtered.length === 0 && (
-                <tr><td className="py-4 opacity-70" colSpan={8}>Sin resultados.</td></tr>
+              {grupos.length === 0 && (
+                <tr><td className="py-4 opacity-70 px-4" colSpan={8}>No se encontraron órdenes.</td></tr>
               )}
             </tbody>
           </table>
@@ -199,4 +285,3 @@ export function Ordenes({ onOpen }: { onOpen: (id: string) => void }) {
     </section>
   )
 }
-
