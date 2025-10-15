@@ -54,8 +54,8 @@ export function Layout({
                 className={`tab ${syncState === 'idle' ? 'tab-active' : ''}`}
                 title={syncState}
               >
-                {syncState === 'idle'
-                  ? 'Sincronizado'
+                {syncState === 'idle' || syncState === 'ok'
+				  ? 'Sincronizado'
                   : syncState === 'syncing'
                   ? 'Sincronizando…'
                   : syncState === 'offline'
