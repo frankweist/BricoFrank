@@ -24,30 +24,29 @@ jobs:
           node-version: 18
 
       - name: Install dependencies
-        # ÚLTIMA CORRECCIÓN DE RUTA: Navegación relativa simple
-        run: |
-          cd apps/web 
-          npm ci
+        # FIX DEFINITIVO: Ejecutar npm ci directamente desde la raíz del repositorio (que es apps/web)
+        run: npm ci
 
       # 🔧 Build con las variables de entorno necesarias para Supabase
       - name: Build project
-        run: |
-          cd apps/web
-          npm run build
+        # Ejecutar npm run build directamente desde la raíz
+        run: npm run build
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
       - name: Prepare deployment folder
+        # Ajustar las rutas de copiado: La carpeta de salida está en la raíz, igual que dist.
         run: |
-          cd apps/web
-          rm -rf ../_pages/*
-          cp -r ./dist/* ../_pages/
+          mkdir -p _pages # Aseguramos que la carpeta de destino exista
+          rm -rf _pages/*
+          cp -r dist/* _pages/
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          # El public_dir es la carpeta _pages, que ahora está en la raíz del repositorio
           publish_dir: ./_pages 
           publish_branch: gh-pages
           user_name: 'github-actions[bot]'
