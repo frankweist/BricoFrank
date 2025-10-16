@@ -1,8 +1,8 @@
-﻿import { useMemo, useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../data/db'
 import { ChevronDown, ChevronRight } from 'lucide-react'
-import { forceSync } from '../../sync/autosync'; // 💡 Importar función de sincronización
+import { forceSync } from '../../sync/autosync';
 
 type OrdenRow = {
   id: string
@@ -23,7 +23,7 @@ type GrupoCliente = {
   ordenes: OrdenRow[]
 }
 
-// Funciones de utilidad CSV/JSON
+// Funciones de utilidad CSV/JSON (Omitidas por brevedad, pero mantenidas en tu archivo)
 function toCSV(rows: OrdenRow[]) {
   const esc = (s: string) => `"${(s || '').replace(/"/g, '""')}"`
   const head = ['ID', 'Código', 'Estado', 'Cliente', 'Teléfono', 'Equipo', 'Creada', 'Actualizada']
@@ -57,7 +57,7 @@ export function Ordenes({ onOpen }: { onOpen: (id: string) => void }) {
   const [hasta, setHasta] = useState('')
   const [ordenar, setOrdenar] = useState<'creada_desc' | 'creada_asc' | 'act_desc' | 'act_asc'>('act_desc')
   const [expandedClienteId, setExpandedClienteId] = useState<string | null>(null);
-  const [isSyncing, setIsSyncing] = useState(false); // 💡 Estado para el botón de sincronización
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const allOrdenes = useLiveQuery(() => db.ordenes.toArray(), []);
   
@@ -80,9 +80,9 @@ export function Ordenes({ onOpen }: { onOpen: (id: string) => void }) {
         id: o.id,
         codigo: o.codigo,
         estado: o.estado,
-        cliente: o.cliente, // Se usan los campos redundantes
-        telefono: o.telefono, // Se usan los campos redundantes
-        equipo: o.equipo, // Se usan los campos redundantes
+        cliente: o.cliente,
+        telefono: o.telefono,
+        equipo: o.equipo,
         creada: o.creada,
         actualizada: o.actualizada
       }
@@ -101,8 +101,7 @@ export function Ordenes({ onOpen }: { onOpen: (id: string) => void }) {
       gruposMap[clienteId].totalOrdenes++;
     });
     
-    // ... (El resto de la lógica de ordenamiento y filtrado se mantiene) ...
-
+    // ... (Lógica de ordenamiento y filtrado) ...
     let list = Object.values(gruposMap);
 
     const t = q.trim().toLowerCase()
@@ -140,15 +139,13 @@ export function Ordenes({ onOpen }: { onOpen: (id: string) => void }) {
   }, [allOrdenes, q, estado, desde, hasta, ordenar, expandedClienteId])
 
 
-  // Función exportCSV
+  // Funciones de manejo de datos (Omitidas por brevedad, pero mantenidas en tu archivo)
   function exportCSV() {
     const allRows: OrdenRow[] = grupos.flatMap(g => g.ordenes)
-    
     if (allRows.length === 0) {
       alert('No hay órdenes para exportar.')
       return
     }
-
     const csv = toCSV(allRows)
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
@@ -159,7 +156,6 @@ export function Ordenes({ onOpen }: { onOpen: (id: string) => void }) {
     URL.revokeObjectURL(url)
   }
 
-  // Función importJSON
   async function importJSON() {
     if (!confirm('¿Estás seguro de que quieres importar datos? Esto podría añadir o sobrescribir datos si los IDs coinciden.')) return
     const data = await pickJSON()
@@ -191,7 +187,6 @@ export function Ordenes({ onOpen }: { onOpen: (id: string) => void }) {
     alert('Orden eliminada correctamente')
   }
 
-  // 💡 NUEVO: Función para sincronización manual
   async function handleSync() {
     setIsSyncing(true);
     try {
@@ -251,16 +246,16 @@ export function Ordenes({ onOpen }: { onOpen: (id: string) => void }) {
             </thead>
             <tbody>
               {grupos.map(grupo => (
-                <>
-                  <tr key={grupo.clienteId} className="bg-neutral-100 dark:bg-neutral-800 font-semibold cursor-pointer" onClick={() => setExpandedClienteId(e => e === grupo.clienteId ? null : grupo.clienteId)}>
-                    <td className="py-2 px-3 flex items-center gap-2" colSpan={8}>
-                      {expandedClienteId === grupo.clienteId ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
-                      Cliente: {grupo.nombre} ({grupo.telefono}) | Órdenes: {grupo.ordenes.length}
-                    </td>
-                  </tr>
+                // 💡 FIX 1: Usar React.Fragment con la key para la lista de hijos
+                <React.Fragment key={grupo.clienteId}>
+                  {/* 💡 FIX 2: Unir <tr> y <td> para corregir la advertencia de whitespace */}
+                  <tr className="bg-neutral-100 dark:bg-neutral-800 font-semibold cursor-pointer" onClick={() => setExpandedClienteId(e => e === grupo.clienteId ? null : grupo.clienteId)}><td className="py-2 px-3 flex items-center gap-2" colSpan={8}>
+                    {expandedClienteId === grupo.clienteId ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+                    Cliente: {grupo.nombre} ({grupo.telefono}) | Órdenes: {grupo.ordenes.length}
+                  </td></tr>
                   {expandedClienteId === grupo.clienteId && grupo.ordenes.map(r => (
-                    <tr key={r.id} className="border-t border-neutral-200/70 dark:border-neutral-800">
-                      <td className="py-2 pr-3 pl-8">{r.codigo}</td>
+                    // 💡 FIX 2: Unir <tr> y <td> para corregir la advertencia de whitespace
+                    <tr key={r.id} className="border-t border-neutral-200/70 dark:border-neutral-800"><td className="py-2 pr-3 pl-8">{r.codigo}</td>
                       <td className="py-2 pr-3">{r.cliente}</td>
                       <td className="py-2 pr-3">{r.telefono}</td>
                       <td className="py-2 pr-3">{r.equipo}</td>
@@ -273,9 +268,10 @@ export function Ordenes({ onOpen }: { onOpen: (id: string) => void }) {
                       </td>
                     </tr>
                   ))}
-                </>
+                </React.Fragment>
               ))}
               {grupos.length === 0 && (
+                // 💡 FIX 2: Unir <tr> y <td> para corregir la advertencia de whitespace
                 <tr><td className="py-4 opacity-70 px-4" colSpan={8}>No se encontraron órdenes.</td></tr>
               )}
             </tbody>

@@ -40,4 +40,15 @@
 .read-the-docs {
   color: #888;
 }
+/* Estilo para la tarjeta de advertencia/presupuesto */
+.card-warning {
+  /* Fondo claro / Color primario suave */
+  background-color: #fef3c7; /* light amber 100 */
+  border: 1px solid #fde68a; /* light amber 300 */
+}
 
+.dark .card-warning {
+  /* Fondo oscuro / Color primario suave */
+  background-color: #453a1d; /* dark amber approx */
+  border: 1px solid #78350f; /* dark amber 800 */
+}

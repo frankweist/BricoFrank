@@ -4,9 +4,11 @@ import { Registro } from "./modules/registro/Registro"
 import { Ordenes } from "./modules/ordenes/Ordenes"
 import { Presupuesto } from "./modules/presupuesto/Presupuesto"
 import { DetalleOrden } from "./modules/reparacion/DetalleOrden"
+import { Informes } from "./modules/informes/Informes"
 import './sync/autosync'
 
-export type Tab = "registro"|"ordenes"|"presupuesto"|"reparacion"
+// Se añade "informes" al tipo Tab
+export type Tab = "registro"|"ordenes"|"presupuesto"|"reparacion"|"informes" 
 
 export default function App(){
   const [tab,setTab] = useState<Tab>("ordenes")
@@ -30,6 +32,7 @@ export default function App(){
         selId ? <DetalleOrden ordenId={selId}/> :
         <div className="card"><div className="card-body">Selecciona una orden desde “Órdenes”.</div></div>
       )}
+      {tab==="informes" && <Informes />} 
     </Layout>
   )
 }

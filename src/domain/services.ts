@@ -2,7 +2,7 @@
 import { db } from "../data/db"
 import type { Cliente, Equipo, Orden, Evento } from "./types" 
 
-// 💡 Tipo de cliente que permite un ID opcional para la edición/UPSERT
+// 💡 MEJORA: Tipo de cliente que permite un ID opcional para la edición/UPSERT
 type ClienteInput = Pick<Cliente, "nombre" | "telefono" | "email"> & { id?: string };
 
 export function genCodigoOrden(now = Date.now()) { return "ORD-" + now }
@@ -18,10 +18,12 @@ async function getOrCreateCliente(inputCliente: ClienteInput): Promise<Cliente> 
     await db.clientes.update(inputCliente.id, {
       nombre: inputCliente.nombre,
       telefono: inputCliente.telefono,
-      email: inputCliente.email || null,
+      email: inputCliente.email || null, // Usar null para valores vacíos
     });
+    // Obtener el cliente actualizado (o el que debería ser)
     cliente = await db.clientes.get(inputCliente.id) as Cliente;
     
+    // Fallback si el cliente no existía por alguna razón (aunque Dexie.update ya devuelve 0)
     if (!cliente) {
         throw new Error(`Error: Cliente con ID ${inputCliente.id} no encontrado para actualizar.`);
     }
@@ -31,7 +33,7 @@ async function getOrCreateCliente(inputCliente: ClienteInput): Promise<Cliente> 
     cliente = {
       id: newId,
       nombre: inputCliente.nombre,
-      telefono: inputCliente.telefono, 
+      telefono: inputCliente.cliente.telefono,
       email: inputCliente.email || null,
       fecha_alta: ahora
     };
@@ -42,12 +44,12 @@ async function getOrCreateCliente(inputCliente: ClienteInput): Promise<Cliente> 
 
 /** Crea cliente + equipo + orden */
 export async function crearOrdenCompleta(input: {
-  cliente: ClienteInput,
+  cliente: ClienteInput, // 💡 Ahora permite ID opcional
   equipo:  Pick<Equipo, "categoria" | "marca" | "modelo" | "numeroSerie" | "descripcion">
 }) {
   const ahora = new Date().toISOString()
   
-  // Transacción atómica
+  // 💡 MEJORA: Transacción atómica
   return db.transaction('rw', db.clientes, db.equipos, db.ordenes, db.eventos, async () => {
     
     // 1. Obtener/Crear/Actualizar Cliente
@@ -70,10 +72,10 @@ export async function crearOrdenCompleta(input: {
       id: uuid(),
       codigo: genCodigoOrden(),
       equipoId: equipo.id,
-      estado: "recepcion", 
+      estado: "recepcion",
       creada: ahora,
       actualizada: ahora,
-      // 🔑 CAMPOS REDUNDANTES (CRÍTICO)
+      // 💡 DATOS REDUNDANTES: Para búsqueda/agrupación rápida en Ordenes.tsx
       cliente: cliente.nombre, 
       telefono: cliente.telefono, 
       equipo: `${equipo.marca} ${equipo.modelo}` 
@@ -100,12 +102,12 @@ export async function crearOrdenCompleta(input: {
 
 /** Crea **un único cliente** y múltiples equipos+órdenes en una sola transacción */
 export async function crearOrdenesMultiples(input: {
-  cliente: ClienteInput,
+  cliente: ClienteInput, // 💡 Ahora permite ID opcional
   equipos: Array<Pick<Equipo, "categoria" | "marca" | "modelo" | "numeroSerie" | "descripcion"> >
 }) {
   const ahora = new Date().toISOString()
   
-  // Transacción atómica
+  // 💡 MEJORA: Transacción atómica
   return db.transaction('rw', db.clientes, db.equipos, db.ordenes, db.eventos, async () => {
       
     // 1. Obtener/Crear/Actualizar Cliente
@@ -126,10 +128,10 @@ export async function crearOrdenesMultiples(input: {
       id: uuid(),
       codigo: genCodigoOrden(),
       equipoId: eq.id,
-      estado: "recepcion", 
+      estado: "recepcion",
       creada: ahora,
       actualizada: ahora,
-      // 🔑 CAMPOS REDUNDANTES (CRÍTICO)
+      // 💡 DATOS REDUNDANTES
       cliente: cliente.nombre, 
       telefono: cliente.telefono, 
       equipo: `${eq.marca} ${eq.modelo}`

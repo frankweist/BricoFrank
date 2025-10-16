@@ -1,36 +1,65 @@
-﻿import { useState, useMemo, useEffect } from "react"
+﻿import React, { useState, useEffect } from "react"
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../../data/db";
 import { crearOrdenCompleta, crearOrdenesMultiples } from "../../domain/services"
+import { Cliente } from "../../data/types"; 
 
+// --- 1. Tipos y Estados Iniciales ---
 type EquipoForm = {
-  // 💡 CAMBIO: 'categoria' se mantiene en el tipo, pero ahora es editable
-  categoria: string 
+  categoria: string // Se mantiene 'categoria' para el backend, pero en el UI será 'Aparato'
   marca: string
   modelo: string
   numeroSerie: string
   descripcion: string
 }
 
-// Estados iniciales para facilitar la limpieza y tipado
-// 💡 CAMBIO: El valor inicial de 'categoria' ahora es una cadena vacía (o el valor que prefieras por defecto)
-const initialCliente = { id: undefined, nombre: "", telefono: "", email: "" };
-const initialEquipo = { categoria: "", marca: "", modelo: "", numeroSerie: "", descripcion: "" }; 
-type ClienteForm = typeof initialCliente & { id: string | undefined }; 
+type ClienteForm = Pick<Cliente, 'nombre' | 'telefono' | 'email'> & { 
+  id: string | undefined; 
+};
 
-export function Registro({ onCreated }:{ onCreated:(ordenId:string)=>void }){
-  const [cliente, setCliente] = useState<ClienteForm>(initialCliente) 
+const initialCliente: ClienteForm = { id: undefined, nombre: "", telefono: "", email: "" };
+const initialEquipo: EquipoForm = { categoria: '', marca: '', modelo: '', numeroSerie: '', descripcion: '' }; // 🔑 CORRECCIÓN: initialCategoria ahora es cadena vacía
+
+
+// ----------------------------------------------------------------
+// 2. FUNCIÓN DE COMPONENTE PRINCIPAL
+// ----------------------------------------------------------------
+export function Registro({ onCreated }: { onCreated: (id: string) => void }) {
+  const [cliente, setCliente] = useState<ClienteForm>(initialCliente)
   const [equipos, setEquipos] = useState<EquipoForm[]>([{ ...initialEquipo }])
   
   const allClientes = useLiveQuery(() => db.clientes.toArray(), []);
 
-  // ... (Lógica de useEffect para carga de cliente por teléfono se mantiene) ...
+  // Lógica de Carga de Cliente Existente (UPSERT) - Omitida para brevedad
+  useEffect(() => {
+    if (cliente.telefono && cliente.telefono.length >= 9 && allClientes) {
+      const existingClient = allClientes.find(c => c.telefono === cliente.telefono);
+      
+      if (existingClient && existingClient.id !== cliente.id) {
+        setCliente({
+          id: existingClient.id,
+          nombre: existingClient.nombre,
+          telefono: existingClient.telefono,
+          email: existingClient.email || "",
+        });
+      }
+    }
+    
+    if (cliente.id && cliente.telefono) {
+        const currentClient = allClientes?.find(c => c.id === cliente.id);
+        if (currentClient && currentClient.telefono !== cliente.telefono) {
+            setCliente(prev => ({ ...prev, id: undefined })); 
+        }
+    } else if (!cliente.telefono && cliente.id) {
+       setCliente(prev => ({ ...prev, id: undefined, nombre: '', email: '' }));
+    }
+  }, [cliente.telefono, allClientes]);
 
+  // 🔑 Lógica de validación actualizada: ahora 'categoria' (aparato) es obligatoria.
   const can =
     !!cliente.nombre &&
     !!cliente.telefono &&
-    // 💡 ACTUALIZADO: Ahora 'categoria' (aparato), 'marca', 'modelo' y 'descripcion' son requeridos
-    equipos.every(e => e.categoria && e.marca && e.modelo && e.descripcion) 
+    equipos.every(e => e.categoria && e.marca && e.modelo && e.descripcion)
 
   function updateEq(i:number, patch:Partial<EquipoForm>){
     setEquipos(prev => prev.map((e,idx)=> idx===i ? { ...e, ...patch } : e))
@@ -43,73 +72,60 @@ export function Registro({ onCreated }:{ onCreated:(ordenId:string)=>void }){
   }
 
   function cleanForm(){
-    setCliente(initialCliente)
+    setCliente({ ...initialCliente })
     setEquipos([{ ...initialEquipo }])
   }
 
   async function crearOrdenes(){
     if(!can) return
-    // ... (rest of crearOrdenes logic, which doesn't change as it uses e.categoria) ...
 
     const clienteData = { 
-        id: cliente.id, 
+        id: cliente.id || undefined, 
         nombre: cliente.nombre, 
         telefono: cliente.telefono, 
-        email: cliente.email 
+        email: cliente.email || undefined 
     };
 
-    try {
-      if(equipos.length === 1){
-        const e = equipos[0]
-        const { orden } = await crearOrdenCompleta({
-          cliente: clienteData,
-          // Se mantiene 'categoria' como nombre de la propiedad
-          equipo:{ categoria:e.categoria, marca:e.marca, modelo:e.modelo, numeroSerie:e.numeroSerie || undefined, descripcion:e.descripcion }
-        })
-        cleanForm()
-        onCreated(orden.id)
-        return
-      }
-
-      const { resultados } = await crearOrdenesMultiples({
+    if(equipos.length === 1){
+      const e = equipos[0]
+      const { orden } = await crearOrdenCompleta({
         cliente: clienteData,
-        equipos: equipos.map(e=>({
-          // Se mantiene 'categoria' como nombre de la propiedad
-          categoria:e.categoria, marca:e.marca, modelo:e.modelo,
-          numeroSerie:e.numeroSerie || undefined, descripcion:e.descripcion
-        }))
+        equipo:{ categoria:e.categoria, marca:e.marca, modelo:e.modelo, numeroSerie:e.numeroSerie || undefined, descripcion:e.descripcion }
       })
       cleanForm()
-      onCreated(resultados[0].orden.id) 
-    } catch(error) {
-        console.error("Error al crear la orden:", error);
-        alert("Hubo un error al crear la orden. Revisa la consola.");
+      onCreated(orden.id)
+      return
     }
+
+    const { resultados } = await crearOrdenesMultiples({
+      cliente: clienteData,
+      equipos: equipos.map(e=>({
+        categoria:e.categoria, marca:e.marca, modelo:e.modelo,
+        numeroSerie:e.numeroSerie || undefined, descripcion:e.descripcion
+      }))
+    })
+    cleanForm()
+    onCreated(resultados[0].orden.id)
   }
 
-  // 💡 ELIMINADO: Ya no necesitamos el array 'categorias'
+  // Las categorías ya no son necesarias para el desplegable.
 
   return (
     <section className="grid gap-4">
       <div className="card"><div className="card-body grid gap-4">
         <h2 className="text-lg font-semibold">{"Registro cliente y aparatos"}</h2>
 
-        {/* Cliente (Se mantiene sin cambios) */}
+        {/* Cliente */}
         <div className="grid sm:grid-cols-2 gap-3">
           <Field label={"Nombre*"}>
             <input className="input" value={cliente.nombre} onChange={e=>setCliente({...cliente, nombre:e.target.value})}/>
-            {cliente.id && <span className="text-xs text-green-500">Cliente existente ID: {cliente.id.substring(0, 4)}...</span>}
+            {cliente.id && <span className="text-xs text-green-500">Cliente existente (ID: {cliente.id.substring(0, 4)}...)</span>}
           </Field>
           <Field label={"Teléfono*"}>
-            <input className="input" value={cliente.telefono} onChange={e=>{
-                setCliente(prev => ({...prev, telefono:e.target.value}));
-                if (cliente.id && e.target.value !== cliente.telefono) {
-                    setCliente(prev => ({...prev, id: undefined, nombre: initialCliente.nombre, email: initialCliente.email}));
-                }
-            }}/>
+            <input className="input" type="tel" value={cliente.telefono} onChange={e=>setCliente({...cliente, telefono:e.target.value})}/>
           </Field>
           <Field label={"Email"}>
-            <input className="input" value={cliente.email} onChange={e=>setCliente({...cliente, email:e.target.value})}/>
+            <input className="input" type="email" value={cliente.email || ''} onChange={e=>setCliente({...cliente, email:e.target.value})}/>
           </Field>
         </div>
 
@@ -124,12 +140,16 @@ export function Registro({ onCreated }:{ onCreated:(ordenId:string)=>void }){
                 )}
               </div>
               <div className="grid sm:grid-cols-2 gap-3">
-                
-                {/* 💡 CAMBIO DE SELECT A INPUT */}
-                <Field label={"Aparato*"}>
-                  <input className="input" placeholder="Ej: Móvil, Ordenador, Robot aspirador..." value={eq.categoria} onChange={e=>updateEq(i,{categoria:e.target.value})}/>
+                {/* 🔑 CAMBIO 1: Se cambia la etiqueta a "Aparato*" */}
+                <Field label={"Aparato*"}> 
+                  {/* 🔑 CAMBIO 2: Se usa un input de texto libre en lugar de un select */}
+                  <input 
+                    className="input w-full" 
+                    value={eq.categoria} // 🔑 Se usa la propiedad 'categoria' para guardar el valor
+                    onChange={e=>updateEq(i,{categoria:e.target.value})}
+                    placeholder="Ej: Móvil, Portátil, Consola PS5, etc."
+                  />
                 </Field>
-                
                 <Field label={"Marca*"}>
                   <input className="input" value={eq.marca} onChange={e=>updateEq(i,{marca:e.target.value})}/>
                 </Field>
@@ -148,7 +168,7 @@ export function Registro({ onCreated }:{ onCreated:(ordenId:string)=>void }){
           <div><button className="btn" onClick={addEquipo}>{"Añadir otro equipo"}</button></div>
         </div>
 
-        {/* Acciones (Se mantiene sin cambios) */}
+        {/* Acciones */}
         <div className="flex gap-2">
           <button className="btn btn-primary" disabled={!can} onClick={crearOrdenes}>Crear orden(es)</button>
           <button className="btn" onClick={cleanForm}>Limpiar</button>

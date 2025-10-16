@@ -1,11 +1,9 @@
 ﻿import { useEffect, useState } from 'react';
-import { Wrench, Moon, Sun, ClipboardList, Calculator, Hammer } from 'lucide-react';
+// 🔑 CORRECCIÓN: Se añade Wrench a la importación
+import { Moon, Sun, ClipboardList, Calculator, Hammer, TrendingUp, Wrench } from 'lucide-react'; 
 import type { Tab } from '../../App';
-import { initAutoSync, onSyncState, getSyncState } from '../../sync/autosync';
-import { Registro } from "../registro/Registro";
-import { Presupuesto } from "../presupuesto/Presupuesto";
-import { DetalleOrden } from "../reparacion/DetalleOrden";
-import { Historial } from "../historial/Historial";
+import { onSyncState, getSyncState } from '../../sync/autosync'; 
+// 💡 La importación de Historial no es necesaria si solo se usa en NavItem/Tab
 
 export function Layout({
   tab, onTab, children,
@@ -16,65 +14,62 @@ export function Layout({
 
   useEffect(() => {
     const handleSyncStateChange = (state: string) => setSyncState(state);
-    initAutoSync();
+    // Inicialización del listener de estado de sincronización. (initAutoSync se llama en main.tsx)
     onSyncState(handleSyncStateChange);
   }, []);
 
+  // Lógica de cambio de tema:
+  useEffect(() => {
+    const root = document.documentElement;
+    localStorage.setItem('gr_dark', dark ? '1' : '0');
+    if (dark) root.classList.add('dark'); else root.classList.remove('dark');
+  }, [dark]);
+
   return (
     <div className="min-h-screen grid grid-cols-1 lg:grid-cols-[240px_1fr] bg-white text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
+      
       {/* Sidebar */}
-      <aside className="hidden lg:flex lg:flex-col gap-2 border-r border-neutral-200/70 dark:border-neutral-800 p-4">
-        <div className="flex items-center gap-2 font-semibold text-lg">
-          <Wrench className="size-5" /> Gestor
-        </div>
-        <nav className="mt-4 grid gap-1">
-          <NavItem icon={ClipboardList} label="Registro" active={tab === 'registro'} onClick={() => onTab('registro')} />
-          <NavItem icon={ClipboardList} label="Órdenes" active={tab === 'ordenes'} onClick={() => onTab('ordenes')} />
-          <NavItem icon={Calculator} label="Presupuesto" active={tab === 'presupuesto'} onClick={() => onTab('presupuesto')} />
-          <NavItem icon={Hammer} label="Reparación" active={tab === 'reparacion'} onClick={() => onTab('reparacion')} />
-          <NavItem icon={Hammer} label="Historial" active={tab === 'historial'} onClick={() => onTab('historial')} />
-        </nav>
-        <div className="mt-auto pt-4 border-t border-neutral-200/70 dark:border-neutral-800">
-          <button className="btn btn-ghost w-full" onClick={() => setDark(v => !v)}>
-            {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
-            <span className="ml-2">{dark ? 'Modo claro' : 'Modo oscuro'}</span>
-          </button>
+      <aside className="hidden lg:flex lg:flex-col gap-2 border-r border-neutral-200 dark:border-neutral-800 p-4 sticky top-0 h-screen">
+        <h1 className="text-xl font-bold mb-4">Gestor Rep.</h1>
+        {/* 🔑 Wrench se usa para Reparación, Hammer para Órdenes, o viceversa, según tu convención */}
+        <NavItem icon={ClipboardList} label="Registro" active={tab === 'registro'} onClick={() => onTab('registro')} />
+        <NavItem icon={Hammer} label="Órdenes" active={tab === 'ordenes'} onClick={() => onTab('ordenes')} />
+        <NavItem icon={Calculator} label="Presupuesto" active={tab === 'presupuesto'} onClick={() => onTab('presupuesto')} />
+        <NavItem icon={Wrench} label="Reparación" active={tab === 'reparacion'} onClick={() => onTab('reparacion')} /> 
+        <NavItem icon={TrendingUp} label="Informes" active={tab === 'informes'} onClick={() => onTab('informes')} /> 
+        
+        <div className="mt-auto pt-4 border-t border-neutral-200 dark:border-neutral-800">
+          <div className="text-xs opacity-70">Sincronización: {syncState}</div>
         </div>
       </aside>
 
-      {/* Main */}
-      <div className="flex flex-col min-h-screen">
-        <header className="sticky top-0 z-10 border-b border-neutral-200/70 dark:border-neutral-800 bg-white/80 dark:bg-neutral-950/70 backdrop-blur">
-          <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
-            <Wrench className="size-5 lg:hidden" />
-            <h1 className="font-semibold">Gestor de Reparaciones</h1>
-            <div className="ml-auto flex items-center gap-2">
-              <span
-                data-sync-chip
-                className={`tab ${syncState === 'idle' ? 'tab-active' : ''}`}
-                title={syncState}
-              >
-                {syncState === 'idle' || syncState === 'ok'
-				  ? 'Sincronizado'
-                  : syncState === 'syncing'
-                  ? 'Sincronizando…'
-                  : syncState === 'offline'
-                  ? 'Offline'
-                  : 'Error'}
-              </span>
+      {/* Main Content */}
+      <div className="grid grid-rows-[auto_1fr]">
+        <header className="border-b border-neutral-200 dark:border-neutral-800">
+          <div className="flex justify-between items-center max-w-6xl w-full mx-auto p-4">
+            <h1 className="text-xl font-bold lg:hidden">Gestor Rep.</h1>
+            <div className="flex gap-2 items-center">
+              
+              {/* Navegación para pantallas pequeñas (tabs) */}
               <button className={`tab ${tab === 'registro' ? 'tab-active' : ''}`} onClick={() => onTab('registro')}>Registro</button>
               <button className={`tab ${tab === 'ordenes' ? 'tab-active' : ''}`} onClick={() => onTab('ordenes')}>Órdenes</button>
               <button className={`tab ${tab === 'presupuesto' ? 'tab-active' : ''}`} onClick={() => onTab('presupuesto')}>Presupuesto</button>
               <button className={`tab ${tab === 'reparacion' ? 'tab-active' : ''}`} onClick={() => onTab('reparacion')}>Reparación</button>
-              <button className={`tab ${tab === 'historial' ? 'tab-active' : ''}`} onClick={() => onTab('historial')}>Historial</button>
+              <button className={`tab ${tab === 'informes' ? 'tab-active' : ''}`} onClick={() => onTab('informes')}>Informes</button> 
+              
+              {/* Botón de Tema */}
               <button title="Tema" className="btn btn-ghost" onClick={() => setDark(v => !v)}>
                 {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
               </button>
             </div>
           </div>
+          {/* Barra de estado de sincronización (visible en pantallas pequeñas) */}
+          <div className="lg:hidden p-2 text-center text-xs opacity-70 border-t border-neutral-200 dark:border-neutral-800">
+              Sincronización: {syncState}
+          </div>
         </header>
 
-        <main className="max-w-6xl w-full mx-auto p-4">
+        <main className="max-w-6xl w-full mx-auto p-4 overflow-y-auto">
           <div className="grid gap-4">{children}</div>
         </main>
       </div>
@@ -82,15 +77,21 @@ export function Layout({
   );
 }
 
+// Componente NavItem
 function NavItem({
   icon: Icon, label, active, onClick
 }: { icon: any; label: string; active?: boolean; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-900 ${active ? 'bg-neutral-100 dark:bg-neutral-900 font-medium' : ''}`}
+      className={`flex items-center gap-2 rounded-lg px-3 py-2 transition-colors duration-150 ${
+        active
+          ? 'bg-primary-500 text-white shadow-md'
+          : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800'
+      }`}
     >
-      <Icon className="size-4" /> <span>{label}</span>
+      <Icon className="size-4" />
+      <span>{label}</span>
     </button>
   );
 }

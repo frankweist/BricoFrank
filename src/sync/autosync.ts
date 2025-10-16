@@ -1,4 +1,4 @@
-﻿import { supa } from "../data/supabase";
+﻿﻿import { supa } from "../data/supabase";
 import { db } from "../data/db";
 
 // 🆔 Identificador único de backup principal (¡Asegúrate que sea el UUID correcto!)
@@ -167,38 +167,46 @@ export async function syncPull() {
 
 // 🔁 Inicializa el autosync automático
 export function initAutoSync(intervalMs = 120000) {
-  if (syncTimer) clearInterval(syncTimer);
-  console.log("⚙️ AutoSync activado cada", intervalMs / 1000, "segundos");
-  
-  if (!syncInitialized) {
-      
-      syncPull().then(async () => {
-          // 🔑 CRÍTICO: Adjuntar el listener de Dexie aquí DESPUÉS de la primera operación de DB.
-          db.on("changes", (changes) => {
-              if (!navigator.onLine) return; 
+  // 💡 CORRECCIÓN 1: Si ya está inicializado, salimos inmediatamente.
+  if (syncInitialized) return; 
 
-              const relevantChanges = changes.some(c => 
-                  c.table === "clientes" || 
-                  c.table === "ordenes" || 
-                  c.table === "equipos" 
-              );
+  if (syncTimer) clearInterval(syncTimer);
+  console.log("⚙️ AutoSync activado cada", intervalMs / 1000, "segundos");
+  
+  // 💡 CORRECCIÓN 2: Adjuntamos el listener de Dexie FUERA del .then()
+  // y lo envolvemos en un try/catch para mayor robustez ante fallos de inicialización.
+  try {
+      db.on("changes", (changes) => {
+          if (!navigator.onLine) return; 
 
-              if (relevantChanges) {
-                  queuePushToSupabase(); 
-              }
-          });
+          const relevantChanges = changes.some(c => 
+              c.table === "clientes" || 
+              c.table === "ordenes" || 
+              c.table === "equipos" 
+          );
 
-          const { data } = await supa.from("backups").select("id").eq("id", ROW_ID);
-          if (!data || data.length === 0) {
-              console.log("🔥 No hay backup remoto, forzando un Push inicial...");
-              syncPush();
-          }
-          syncInitialized = true;
-      });
-  }
+          if (relevantChanges) {
+              queuePushToSupabase(); 
+          }
+      });
+  } catch(e) {
+      console.error("❌ Error al adjuntar listener de Dexie:", e);
+  }
 
-  // Se sincroniza periódicamente (hace PULL, que desencadena lógica de PUSH si es necesario)
-  syncTimer = setInterval(() => {
-    if (syncState !== "syncing") syncPull(); 
-  }, intervalMs);
+  // Realizamos el Pull inicial para abrir la base de datos y obtener datos remotos.
+  syncPull().then(async () => {
+      // Este código se ejecuta SOLO después del primer Pull exitoso.
+      const { data } = await supa.from("backups").select("id").eq("id", ROW_ID);
+      if (!data || data.length === 0) {
+          console.log("🔥 No hay backup remoto, forzando un Push inicial...");
+          syncPush();
+      }
+  });
+
+  // Se sincroniza periódicamente
+  syncTimer = setInterval(() => {
+    if (syncState !== "syncing") syncPull(); 
+  }, intervalMs);
+  
+  syncInitialized = true;
 }
