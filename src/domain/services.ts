@@ -33,7 +33,8 @@ async function getOrCreateCliente(inputCliente: ClienteInput): Promise<Cliente> 
     cliente = {
       id: newId,
       nombre: inputCliente.nombre,
-      telefono: inputCliente.cliente.telefono,
+      // 🔑 CORRECCIÓN: Se elimina el prefijo erróneo 'inputCliente.'
+      telefono: inputCliente.telefono, 
       email: inputCliente.email || null,
       fecha_alta: ahora
     };
@@ -45,7 +46,7 @@ async function getOrCreateCliente(inputCliente: ClienteInput): Promise<Cliente> 
 /** Crea cliente + equipo + orden */
 export async function crearOrdenCompleta(input: {
   cliente: ClienteInput, // 💡 Ahora permite ID opcional
-  equipo:  Pick<Equipo, "categoria" | "marca" | "modelo" | "numeroSerie" | "descripcion">
+  equipo: Pick<Equipo, "categoria" | "marca" | "modelo" | "numeroSerie" | "descripcion">
 }) {
   const ahora = new Date().toISOString()
   

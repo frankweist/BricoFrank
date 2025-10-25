@@ -1,12 +1,12 @@
-﻿﻿import { supa } from "../data/supabase";
+﻿import { supa } from "../data/supabase.ts"; // Asegúrate de que la ruta relativa sea correcta si moviste el archivo
 import { db } from "../data/db";
 
 // 🆔 Identificador único de backup principal (¡Asegúrate que sea el UUID correcto!)
-const ROW_ID = "2f647c2d-8b01-447a-8959-1e35520937a6"; 
+const ROW_ID = "2f647c2d-8b01-447a-8959-1e35520937a6"; 
 
 let syncState = "idle";
 let syncTimer: any = null;
-let syncInitialized = false; 
+let syncInitialized = false; 
 let pushQueueTimer: any = null; // Timer para el debounced push
 
 
@@ -15,22 +15,22 @@ let pushQueueTimer: any = null; // Timer para el debounced push
 // ----------------------------------------------------
 
 export function getSyncState() {
-  return syncState;
+  return syncState;
 }
 
 const handlers: ((state: string) => void)[] = [];
 
 export function onSyncState(handler: (state: string) => void) {
-  handlers.push(handler);
-  return () => {
-    const i = handlers.indexOf(handler);
-    if (i !== -1) handlers.splice(i, 1);
-  };
+  handlers.push(handler);
+  return () => {
+    const i = handlers.indexOf(handler);
+    if (i !== -1) handlers.splice(i, 1);
+  };
 }
 
 function setSyncState(state: string) {
-  syncState = state;
-  handlers.forEach(h => h(state));
+  syncState = state;
+  handlers.forEach(h => h(state));
 }
 
 
@@ -39,36 +39,37 @@ function setSyncState(state: string) {
 // ----------------------------------------------------
 
 /**
- * Pone en cola una subida de datos con un pequeño retraso (debounce).
- * Se usa en db.ts (db.on("changes")).
- */
+ * Pone en cola una subida de datos con un pequeño retraso (debounce).
+ * Se usa en db.ts (db.on("changes")).
+ */
 export function queuePushToSupabase() {
-    if (pushQueueTimer) {
-        clearTimeout(pushQueueTimer);
-    }
-    // Espera 2 segundos después del último cambio antes de hacer el push.
-    pushQueueTimer = setTimeout(() => {
-        if (syncState !== "syncing") {
-            syncPush();
-        }
-    }, 2000); 
+    if (pushQueueTimer) {
+        clearTimeout(pushQueueTimer);
+    }
+    // Espera 2 segundos después del último cambio antes de hacer el push.
+    pushQueueTimer = setTimeout(() => {
+        if (syncState !== "syncing") {
+            syncPush();
+        }
+    }, 2000); 
 }
 
 /**
- * Fuerza una sincronización completa (Push + Pull). Usada por el botón manual.
- */
+ * Fuerza una sincronización completa (Push + Pull). Usada por el botón manual.
+ */
 export async function forceSync() {
-    setSyncState("syncing"); 
-    console.log("⚙️ Sincronización manual forzada...");
-    try {
-        await syncPush(); // 1. Subir cambios locales
-        await syncPull(); // 2. Descargar cambios de la nube
-    } catch (error) {
-        console.error("❌ Error en sincronización forzada:", error);
-        setSyncState("error");
-        // Volvemos a lanzar el error para que el componente que lo llama lo maneje
-        throw error; 
-    }
+    setSyncState("syncing"); 
+    console.log("⚙️ Sincronización manual forzada...");
+    try {
+        await syncPush(); // 1. Subir cambios locales (solo si hay cambios)
+        await syncPull(true); // 2. Descargar cambios de la nube (FORZANDO la descarga)
+        setSyncState("ok");
+    } catch (error) {
+        console.error("❌ Error en sincronización forzada:", error);
+        setSyncState("error");
+        // Volvemos a lanzar el error para que el componente que lo llama lo maneje
+        throw error; 
+    }
 }
 
 
@@ -78,103 +79,101 @@ export async function forceSync() {
 
 // 🟢 Sube la base de datos local a Supabase
 export async function syncPush() {
-  try {
-    setSyncState("syncing");
-    console.log("📤 Subiendo backup a Supabase...");
+  try {
+    setSyncState("syncing");
+    console.log("📤 Subiendo backup a Supabase...");
 
-    const clientes = await db.clientes.toArray();
-    const equipos = await db.equipos.toArray(); 
-    const ordenes = await db.ordenes.toArray();
-    const adjuntos = await db.adjuntos.toArray();
+    const clientes = await db.clientes.toArray();
+	const equipos = await db.equipos.toArray();
+	const ordenes = await db.ordenes.toArray();
+	const piezas = await db.piezas.toArray();
+	const adjuntos = await db.adjuntos.toArray();
 
-    // El campo 'fecha' es clave para la lógica de Pull
-    const payload = { clientes, equipos, ordenes, adjuntos, fecha: new Date().toISOString() };
+	const payload = { clientes, equipos, ordenes, piezas, adjuntos, fecha: new Date().toISOString() };
 
-    const { error } = await supa
-      .from("backups")
-      .upsert([{ id: ROW_ID, fecha: new Date().toISOString(), payload }], { onConflict: "id" });
 
-    if (error) throw error;
+    const { error } = await supa
+      .from("backups")
+      .upsert([{ id: ROW_ID, fecha: new Date().toISOString(), payload }], { onConflict: "id" });
 
-    console.log("✅ Backup subido correctamente.");
-    setSyncState("ok");
-  } catch (err: any) {
-    console.error("❌ Error en syncPush:", err.message);
-    setSyncState("error");
-  }
+    if (error) throw error;
+
+    console.log("✅ Backup subido correctamente.");
+    setSyncState("ok");
+  } catch (err: any) {
+    console.error("❌ Error en syncPush:", err.message);
+    setSyncState("error");
+  }
 }
 
 // 🔵 Descarga los datos desde Supabase a la base local
-export async function syncPull() {
-  try {
-    setSyncState("syncing");
-    console.log("⬇️ Descargando backup desde Supabase...");
+// 🔑 CORRECCIÓN CRÍTICA: Se añade un parámetro 'force'
+export async function syncPull(force: boolean = false) {
+  try {
+    setSyncState("syncing");
+    console.log("⬇️ Descargando backup desde Supabase...");
 
-    const { data, error } = await supa
-      .from("backups")
-      .select("payload")
-      .eq("id", ROW_ID)
-      .single();
+    const { data, error } = await supa
+      .from("backups")
+      .select("payload, fecha") // También seleccionamos la fecha para comparación
+      .eq("id", ROW_ID)
+      .single();
 
-    if (error) throw error;
+    if (error && error.code !== 'PGRST116') throw error; // PGRST116 es 'no se encontró una sola fila', lo manejamos abajo
 
-    const backupData = data?.payload as any;
+    const backupData = data?.payload as any;
+    const remoteDate = data?.fecha ? new Date(data.fecha) : null;
 
-    // Lógica 1: No hay backup en Supabase.
-    if (!backupData || !backupData.fecha) {
-      console.log("⚠️ No se encontró backup válido en Supabase. Se mantendrán los datos locales.");
-      setSyncState("ok");
-      return; 
-    }
+    // Lógica 1: No hay backup en Supabase.
+    if (!backupData) {
+      console.log("⚠️ No se encontró backup válido en Supabase. Se mantendrán los datos locales.");
+      setSyncState("ok");
+      return; 
+    }
 
-    const remoteDate = new Date(backupData.fecha);
-
-    // Lógica 2: Compara la fecha remota con la local.
-    const localOrdenCount = await db.ordenes.count();
-    const latestLocalOrder = await db.ordenes.orderBy('actualizada').last();
-    
-    // Si la base de datos local está vacía O el backup remoto es más nuevo.
-    if (localOrdenCount === 0 || remoteDate > new Date(latestLocalOrder?.actualizada || 0)) {
-        
-        console.log("🔄 Restaurando backup remoto más reciente...");
-        
-        const { clientes, equipos, ordenes, adjuntos } = backupData;
-
-        // Limpia e inserta los datos locales
-        await db.transaction("rw", db.clientes, db.equipos, db.ordenes, db.adjuntos, async () => {
-          await db.clientes.clear();
-          await db.equipos.clear(); 
-          await db.ordenes.clear();
-          await db.adjuntos.clear();
-
-          await db.clientes.bulkAdd(clientes || []);
-          await db.equipos.bulkAdd(equipos || []); 
-          await db.ordenes.bulkAdd(ordenes || []);
+    // Lógica 2: Compara la fecha remota con la local.
+    const localOrdenCount = await db.ordenes.count();
+    const latestLocalOrder = await db.ordenes.orderBy('actualizada').last();
+    
+    // CONDICIÓN CORREGIDA: Si la base de datos local está vacía O se forzó la sincronización O el backup remoto es más nuevo.
+    const remoteIsNewer = remoteDate && remoteDate > new Date(latestLocalOrder?.actualizada || 0);
+    
+    if (localOrdenCount === 0 || force || remoteIsNewer) {
+        
+        console.log(`🔄 Restaurando backup remoto. Causa: ${localOrdenCount === 0 ? 'Local vacío' : force ? 'Sincronización forzada' : 'Remoto más reciente'}`);
+        
+        const { clientes, equipos, ordenes, piezas, adjuntos } = backupData;
+		await db.transaction("rw", db.clientes, db.equipos, db.ordenes, db.piezas, db.adjuntos, async () => {
+		  await db.clientes.clear(); await db.equipos.clear(); await db.ordenes.clear(); await db.piezas.clear(); await db.adjuntos.clear();
+		  await db.clientes.bulkAdd(clientes || []);
+          await db.equipos.bulkAdd(equipos || []);
+		  await db.ordenes.bulkAdd(ordenes || []);
+          await db.piezas.bulkAdd(piezas || []);
           await db.adjuntos.bulkAdd(adjuntos || []);
-        });
+});
 
-        console.log("✅ Datos restaurados desde Supabase.");
-    } else {
-        console.log("Datos locales más recientes o iguales. No se realiza pull.");
-    }
 
-    setSyncState("ok");
-  } catch (err: any) {
-    console.error("❌ Error en syncPull:", err.message);
-    setSyncState("error");
-  }
+        console.log("✅ Datos restaurados desde Supabase.");
+    } else {
+        console.log("Datos locales más recientes o iguales. No se realiza pull.");
+    }
+
+    setSyncState("ok");
+  } catch (err: any) {
+    console.error("❌ Error en syncPull:", err.message);
+    setSyncState("error");
+  }
 }
 
 // 🔁 Inicializa el autosync automático
 export function initAutoSync(intervalMs = 120000) {
   // 💡 CORRECCIÓN 1: Si ya está inicializado, salimos inmediatamente.
-  if (syncInitialized) return; 
+  if (syncInitialized) return; 
 
   if (syncTimer) clearInterval(syncTimer);
   console.log("⚙️ AutoSync activado cada", intervalMs / 1000, "segundos");
   
   // 💡 CORRECCIÓN 2: Adjuntamos el listener de Dexie FUERA del .then()
-  // y lo envolvemos en un try/catch para mayor robustez ante fallos de inicialización.
   try {
       db.on("changes", (changes) => {
           if (!navigator.onLine) return; 
@@ -190,7 +189,7 @@ export function initAutoSync(intervalMs = 120000) {
           }
       });
   } catch(e) {
-      console.error("❌ Error al adjuntar listener de Dexie:", e);
+      console.error("❌ Error al adjuntar listener de Dexie:", e);
   }
 
   // Realizamos el Pull inicial para abrir la base de datos y obtener datos remotos.
@@ -207,6 +206,6 @@ export function initAutoSync(intervalMs = 120000) {
   syncTimer = setInterval(() => {
     if (syncState !== "syncing") syncPull(); 
   }, intervalMs);
-  
+  
   syncInitialized = true;
 }

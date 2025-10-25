@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
-import { supabase } from "../data/supabase"
+// 🔑 CORRECCIÓN: Cambiamos '{ supabase }' a '{ supa }' para usar el nombre correcto de la exportación en supabase.ts
+import { supa } from "../../data/supabase.ts" 
 
 type Presupuesto = {
   id: number
@@ -17,7 +18,8 @@ export function ListaPresupuestos() {
 
   useEffect(() => {
     const fetchData = async () => {
-      const { data, error } = await supabase.from("presupuestos").select("*").order("id", { ascending: false })
+      // 🔑 CORRECCIÓN: Usamos 'supa' en lugar de 'supabase'
+      const { data, error } = await supa.from("presupuestos").select("*").order("id", { ascending: false })
       if (error) {
         alert("Error al obtener presupuestos: " + error.message)
       } else {

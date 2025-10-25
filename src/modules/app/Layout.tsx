@@ -1,9 +1,18 @@
 ﻿import { useEffect, useState } from 'react';
-// 🔑 CORRECCIÓN: Se añade Wrench a la importación
-import { Moon, Sun, ClipboardList, Calculator, Hammer, TrendingUp, Wrench } from 'lucide-react'; 
+// 🔑 CORRECCIÓN: Se añaden los iconos necesarios
+import { Moon, Sun, ClipboardList, Calculator, Hammer, TrendingUp, Wrench, BookOpenText } from 'lucide-react'; 
 import type { Tab } from '../../App';
 import { onSyncState, getSyncState } from '../../sync/autosync'; 
-// 💡 La importación de Historial no es necesaria si solo se usa en NavItem/Tab
+
+// Definición de las NavItem que coinciden con el tipo Tab en App.tsx
+const navItems = [
+  { tab: 'registro', label: 'Registro', icon: BookOpenText },
+  { tab: 'ordenes', label: 'Órdenes', icon: ClipboardList },
+  { tab: 'presupuesto', label: 'Presupuesto', icon: Calculator },
+  { tab: 'reparacion', label: 'Reparación', icon: Wrench },
+  { tab: 'historial', label: 'Historial', icon: Hammer },
+  { tab: 'informes', label: 'Informes', icon: TrendingUp },
+] as const; 
 
 export function Layout({
   tab, onTab, children,
@@ -14,7 +23,6 @@ export function Layout({
 
   useEffect(() => {
     const handleSyncStateChange = (state: string) => setSyncState(state);
-    // Inicialización del listener de estado de sincronización. (initAutoSync se llama en main.tsx)
     onSyncState(handleSyncStateChange);
   }, []);
 
@@ -27,38 +35,49 @@ export function Layout({
 
   return (
     <div className="min-h-screen grid grid-cols-1 lg:grid-cols-[240px_1fr] bg-white text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
-      
-      {/* Sidebar */}
+      {/* Sidebar (Desktop) */}
       <aside className="hidden lg:flex lg:flex-col gap-2 border-r border-neutral-200 dark:border-neutral-800 p-4 sticky top-0 h-screen">
-        <h1 className="text-xl font-bold mb-4">Gestor Rep.</h1>
-        {/* 🔑 Wrench se usa para Reparación, Hammer para Órdenes, o viceversa, según tu convención */}
-        <NavItem icon={ClipboardList} label="Registro" active={tab === 'registro'} onClick={() => onTab('registro')} />
-        <NavItem icon={Hammer} label="Órdenes" active={tab === 'ordenes'} onClick={() => onTab('ordenes')} />
-        <NavItem icon={Calculator} label="Presupuesto" active={tab === 'presupuesto'} onClick={() => onTab('presupuesto')} />
-        <NavItem icon={Wrench} label="Reparación" active={tab === 'reparacion'} onClick={() => onTab('reparacion')} /> 
-        <NavItem icon={TrendingUp} label="Informes" active={tab === 'informes'} onClick={() => onTab('informes')} /> 
+        <h1 className="text-xl font-bold p-2 mb-4">Gestor de Reparaciones</h1>
         
-        <div className="mt-auto pt-4 border-t border-neutral-200 dark:border-neutral-800">
-          <div className="text-xs opacity-70">Sincronización: {syncState}</div>
+        {navItems.map(item => (
+          <NavItem
+            key={item.tab}
+            icon={item.icon}
+            label={item.label}
+            active={tab === item.tab}
+            onClick={() => onTab(item.tab as Tab)} 
+          />
+        ))}
+
+        <div className="mt-auto pt-4 border-t border-neutral-200 dark:border-neutral-800 flex flex-col gap-2">
+            <p className="text-xs opacity-70">Sincronización: {syncState}</p>
+            <div className="flex justify-between items-center">
+                <p className="text-sm font-semibold">Tema</p>
+                <button title="Tema" className="btn btn-ghost" onClick={() => setDark(v => !v)}>
+                    {dark ? <Sun className="size-5" /> : <Moon className="size-5" />}
+                </button>
+            </div>
         </div>
       </aside>
 
-      {/* Main Content */}
-      <div className="grid grid-rows-[auto_1fr]">
-        <header className="border-b border-neutral-200 dark:border-neutral-800">
-          <div className="flex justify-between items-center max-w-6xl w-full mx-auto p-4">
-            <h1 className="text-xl font-bold lg:hidden">Gestor Rep.</h1>
-            <div className="flex gap-2 items-center">
-              
-              {/* Navegación para pantallas pequeñas (tabs) */}
-              <button className={`tab ${tab === 'registro' ? 'tab-active' : ''}`} onClick={() => onTab('registro')}>Registro</button>
-              <button className={`tab ${tab === 'ordenes' ? 'tab-active' : ''}`} onClick={() => onTab('ordenes')}>Órdenes</button>
-              <button className={`tab ${tab === 'presupuesto' ? 'tab-active' : ''}`} onClick={() => onTab('presupuesto')}>Presupuesto</button>
-              <button className={`tab ${tab === 'reparacion' ? 'tab-active' : ''}`} onClick={() => onTab('reparacion')}>Reparación</button>
-              <button className={`tab ${tab === 'informes' ? 'tab-active' : ''}`} onClick={() => onTab('informes')}>Informes</button> 
-              
-              {/* Botón de Tema */}
-              <button title="Tema" className="btn btn-ghost" onClick={() => setDark(v => !v)}>
+      {/* Contenido Principal */}
+      <div className="flex flex-col h-screen overflow-y-auto">
+        {/* Header (Mobile/Tablet) */}
+        <header className="sticky top-0 z-10 bg-white dark:bg-neutral-950 border-b border-neutral-200 dark:border-neutral-800">
+          <div className="max-w-6xl mx-auto p-2 lg:p-0">
+            {/* Nav de pestañas (Mobile/Tablet) */}
+            <div className="flex gap-2 p-2 overflow-x-auto lg:hidden justify-between">
+              {navItems.map(item => (
+                <button 
+                  key={item.tab} 
+                  className={`tab ${tab === item.tab ? 'tab-active' : ''}`} 
+                  onClick={() => onTab(item.tab as Tab)}
+                >
+                  {item.label}
+                </button>
+              ))}
+              {/* Botón de Tema (Móvil) */}
+              <button title="Tema" className="btn btn-ghost flex-shrink-0" onClick={() => setDark(v => !v)}>
                 {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
               </button>
             </div>
@@ -69,7 +88,7 @@ export function Layout({
           </div>
         </header>
 
-        <main className="max-w-6xl w-full mx-auto p-4 overflow-y-auto">
+        <main className="max-w-6xl w-full mx-auto p-4 overflow-y-auto flex-grow">
           <div className="grid gap-4">{children}</div>
         </main>
       </div>
@@ -86,11 +105,11 @@ function NavItem({
       onClick={onClick}
       className={`flex items-center gap-2 rounded-lg px-3 py-2 transition-colors duration-150 ${
         active
-          ? 'bg-primary-500 text-white shadow-md'
+          ? 'bg-primary-100 text-primary-700 dark:bg-primary-800 dark:text-primary-100'
           : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800'
       }`}
     >
-      <Icon className="size-4" />
+      <Icon className="size-5" />
       <span>{label}</span>
     </button>
   );

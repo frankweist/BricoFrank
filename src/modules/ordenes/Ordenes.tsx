@@ -1,283 +1,319 @@
 import React, { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../data/db'
-import { ChevronDown, ChevronRight } from 'lucide-react'
-import { forceSync } from '../../sync/autosync';
+import { ChevronDown, ChevronRight, Download, Upload } from 'lucide-react'
+import { forceSync } from '../../sync/autosync'
 
+// -------------------- Tipos --------------------
 type OrdenRow = {
   id: string
   codigo: string
   estado: string
   cliente: string
   telefono: string
-  equipo: string
+  aparato: string
+  marca: string
+  modelo: string
   creada: string
   actualizada: string
 }
 
 type GrupoCliente = {
-  clienteId: string
+  clienteKey: string
   nombre: string
   telefono: string
   totalOrdenes: number
   ordenes: OrdenRow[]
 }
 
-// Funciones de utilidad CSV/JSON (Omitidas por brevedad, pero mantenidas en tu archivo)
-function toCSV(rows: OrdenRow[]) {
-  const esc = (s: string) => `"${(s || '').replace(/"/g, '""')}"`
-  const head = ['ID', 'Código', 'Estado', 'Cliente', 'Teléfono', 'Equipo', 'Creada', 'Actualizada']
-  const lines = [head.join(',')].concat(
-    rows.map(r => [
-      r.id, r.codigo, r.estado, r.cliente, r.telefono, r.equipo,
-      new Date(r.creada).toLocaleString(), new Date(r.actualizada).toLocaleString()
-    ].map(esc).join(','))
-  )
-  return lines.join('\r\n')
+// -------------------- Utilidades --------------------
+function download(data: string, filename: string, mimeType: string) {
+  const blob = new Blob([data], { type: mimeType })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
 }
 
 async function pickJSON(): Promise<any | null> {
   return new Promise(res => {
     const i = document.createElement('input')
-    i.type = 'file'; i.accept = 'application/json'
+    i.type = 'file'
+    i.accept = 'application/json'
     i.onchange = async () => {
-      const f = i.files?.[0]; if (!f) { res(null); return }
-      try { const data = JSON.parse(await f.text()); res(data) } catch { res(null) }
+      const f = i.files?.[0]
+      if (!f) return res(null)
+      try {
+        const data = JSON.parse(await f.text())
+        res(data)
+      } catch {
+        res(null)
+      }
     }
     i.click()
   })
 }
-// ----------------------------------------------------
 
-
+// -------------------- Componente --------------------
 export function Ordenes({ onOpen }: { onOpen: (id: string) => void }) {
   const [q, setQ] = useState('')
-  const [estado, setEstado] = useState<'todos' | 'recepcion' | 'diagnostico' | 'reparacion' | 'listo' | 'entregado'>('todos')
+  const [estado, setEstado] = useState<'todos' | 'recepcion' | 'diagnostico' | 'presupuesto' | 'reparacion' | 'listo' | 'entregado'>('todos')
   const [desde, setDesde] = useState('')
   const [hasta, setHasta] = useState('')
   const [ordenar, setOrdenar] = useState<'creada_desc' | 'creada_asc' | 'act_desc' | 'act_asc'>('act_desc')
-  const [expandedClienteId, setExpandedClienteId] = useState<string | null>(null);
-  const [isSyncing, setIsSyncing] = useState(false);
+  const [expandedCliente, setExpandedCliente] = useState<string | null>(null)
+  const [isSyncing, setIsSyncing] = useState(false)
 
-  const allOrdenes = useLiveQuery(() => db.ordenes.toArray(), []);
-  
+  // 1. Cargar órdenes, clientes y equipos
+  const allOrdenes = useLiveQuery(async () => {
+    const ordenes = await db.ordenes.toArray()
+    const clientes = await db.clientes.toArray()
+    const equipos = await db.equipos.toArray()
+
+    return ordenes.map(o => {
+      const c = clientes.find(x => x.id === (o as any).clienteId)
+      const e = equipos.find(x => x.id === (o as any).equipoId)
+
+      const nombreCliente = typeof o.cliente === 'object' ? o.cliente.nombre : o.cliente || c?.nombre || '—'
+      const telefonoCliente = typeof o.cliente === 'object' ? o.cliente.telefono : o.telefono || c?.telefono || '—'
+
+      const aparato = typeof o.equipo === 'object'
+        ? o.equipo.aparato || e?.aparato || '—'
+        : e?.aparato || o.equipo || '—'
+      const marca = typeof o.equipo === 'object'
+        ? o.equipo.marca || e?.marca || '—'
+        : e?.marca || '—'
+      const modelo = typeof o.equipo === 'object'
+        ? o.equipo.modelo || e?.modelo || '—'
+        : e?.modelo || '—'
+
+      return {
+        ...o,
+        cliente: nombreCliente,
+        telefono: telefonoCliente,
+        aparato,
+        marca,
+        modelo
+      }
+    })
+  }, [])
+
+  // 2. Agrupar y filtrar
   const grupos = useMemo<GrupoCliente[]>(() => {
     if (!allOrdenes) return []
-    
+
     const gruposMap: Record<string, GrupoCliente> = {}
 
     allOrdenes.forEach(o => {
-      // 🔑 CRÍTICO: Filtra órdenes que no tienen los campos redundantes (las órdenes viejas)
-      if (!o.cliente || !o.telefono || !o.equipo) {
-        console.warn("Orden ignorada por falta de campos redundantes:", o.id);
-        return; 
-      }
-      
-      // Usamos una clave única para la agrupación (nombre+telefono)
-      const clienteId = o.cliente + o.telefono; 
+      const nombreCliente = typeof o.cliente === 'string' ? o.cliente : '—'
+      const telefonoCliente = typeof o.telefono === 'string' ? o.telefono : '—'
+      const key = `${nombreCliente}-${telefonoCliente}`
 
       const row: OrdenRow = {
         id: o.id,
         codigo: o.codigo,
         estado: o.estado,
-        cliente: o.cliente,
-        telefono: o.telefono,
-        equipo: o.equipo,
+        cliente: nombreCliente,
+        telefono: telefonoCliente,
+        aparato: o.aparato,
+        marca: o.marca,
+        modelo: o.modelo,
         creada: o.creada,
         actualizada: o.actualizada
       }
 
-      if (!gruposMap[clienteId]) {
-        gruposMap[clienteId] = {
-          clienteId,
-          nombre: row.cliente,
-          telefono: row.telefono,
-          totalOrdenes: 0,
-          ordenes: []
-        };
+      if (!gruposMap[key]) {
+        gruposMap[key] = { clienteKey: key, nombre: nombreCliente, telefono: telefonoCliente, totalOrdenes: 0, ordenes: [] }
       }
-      
-      gruposMap[clienteId].ordenes.push(row);
-      gruposMap[clienteId].totalOrdenes++;
-    });
-    
-    // ... (Lógica de ordenamiento y filtrado) ...
-    let list = Object.values(gruposMap);
+
+      gruposMap[key].ordenes.push(row)
+      gruposMap[key].totalOrdenes++
+    })
 
     const t = q.trim().toLowerCase()
-    const by = {
+    const sortFn = {
       creada_desc: (a: OrdenRow, b: OrdenRow) => new Date(b.creada).getTime() - new Date(a.creada).getTime(),
       creada_asc: (a: OrdenRow, b: OrdenRow) => new Date(a.creada).getTime() - new Date(b.creada).getTime(),
       act_desc: (a: OrdenRow, b: OrdenRow) => new Date(b.actualizada).getTime() - new Date(a.actualizada).getTime(),
-      act_asc: (a: OrdenRow, b: OrdenRow) => new Date(a.actualizada).getTime() - new Date(b.actualizada).getTime(),
+      act_asc: (a: OrdenRow, b: OrdenRow) => new Date(a.actualizada).getTime() - new Date(b.actualizada).getTime()
     }[ordenar]
 
-    list = list.filter(grupo => {
-        const ordenesFiltradas = grupo.ordenes.filter(r => {
-            let matchesEstado = (estado === 'todos' || r.estado === estado);
-            let matchesDesde = (desde ? new Date(r.creada) >= new Date(desde) : true);
-            let matchesHasta = (hasta ? (new Date(r.creada).setHours(23, 59, 59, 999)) >= (new Date(hasta).getTime()) : true);
-            
-            return matchesEstado && matchesDesde && matchesHasta;
-        }).sort(by);
-        
-        const matchesClient = grupo.nombre.toLowerCase().includes(t) || grupo.telefono.includes(t);
-        const matchesOrder = ordenesFiltradas.some(r =>
-            r.codigo.toLowerCase().includes(t) || r.equipo.toLowerCase().includes(t)
-        );
-        
-        grupo.ordenes = ordenesFiltradas;
-        
-        return (matchesClient || matchesOrder) && ordenesFiltradas.length > 0;
-    });
-
-    if (expandedClienteId && !list.some(g => g.clienteId === expandedClienteId)) {
-        setExpandedClienteId(null);
-    }
-    
-    return list
-  }, [allOrdenes, q, estado, desde, hasta, ordenar, expandedClienteId])
-
-
-  // Funciones de manejo de datos (Omitidas por brevedad, pero mantenidas en tu archivo)
-  function exportCSV() {
-    const allRows: OrdenRow[] = grupos.flatMap(g => g.ordenes)
-    if (allRows.length === 0) {
-      alert('No hay órdenes para exportar.')
-      return
-    }
-    const csv = toCSV(allRows)
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `ordenes-${new Date().toISOString().slice(0, 10)}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
-  async function importJSON() {
-    if (!confirm('¿Estás seguro de que quieres importar datos? Esto podría añadir o sobrescribir datos si los IDs coinciden.')) return
-    const data = await pickJSON()
-    if (!data) return
-    
-    try {
-      await db.transaction('rw', db.clientes, db.equipos, db.ordenes, db.eventos, db.piezas, db.adjuntos, async () => {
-        if (data.clientes) await db.clientes.bulkAdd(data.clientes).catch(() => console.warn('Advertencia: Algunos clientes ya existían o tenían un ID repetido.'))
-        if (data.equipos) await db.equipos.bulkAdd(data.equipos).catch(() => console.warn('Advertencia: Algunos equipos ya existían o tenían un ID repetido.'))
-        if (data.ordenes) await db.ordenes.bulkAdd(data.ordenes).catch(() => console.warn('Advertencia: Algunas órdenes ya existían o tenían un ID repetido.'))
-        if (data.eventos) await db.eventos.bulkAdd(data.eventos).catch(() => console.warn('Advertencia: Algunos eventos ya existían o tenían un ID repetido.'))
-        if (data.piezas) await db.piezas.bulkAdd(data.piezas).catch(() => console.warn('Advertencia: Algunas piezas ya existían o tenían un ID repetido.'))
-        if (data.adjuntos) await db.adjuntos.bulkAdd(data.adjuntos).catch(() => console.warn('Advertencia: Algunos adjuntos ya existían o tenían un ID repetido.'))
+    return Object.values(gruposMap)
+      .map(g => {
+        const ordenesFiltradas = g.ordenes.filter(r => {
+          const matchesEstado = estado === 'todos' || r.estado === estado
+          const matchesDesde = !desde || new Date(r.creada).getTime() >= new Date(desde).getTime()
+          const matchesHasta = !hasta || new Date(r.creada).getTime() < new Date(hasta).getTime() + 86400000
+          const matchesQuery = !t || r.cliente.toLowerCase().includes(t) || r.telefono.includes(t) || r.aparato.toLowerCase().includes(t) || r.codigo.toLowerCase().includes(t)
+          return matchesEstado && matchesDesde && matchesHasta && matchesQuery
+        }).sort(sortFn)
+        return { ...g, ordenes: ordenesFiltradas, totalOrdenes: ordenesFiltradas.length }
       })
-      alert('Datos importados correctamente.')
-    } catch (e: any) {
-      alert(`Error al importar datos: ${e.message}`)
-    }
-  }
+      .filter(g => g.totalOrdenes > 0)
+  }, [allOrdenes, q, estado, desde, hasta, ordenar])
 
+  // 3. Eliminar, importar, exportar, sincronizar
   async function eliminarOrden(id: string) {
-    if (!confirm('¿Seguro que deseas eliminar esta orden?')) return
-    await db.transaction('rw', db.ordenes, db.eventos, db.piezas, db.adjuntos, async () => {
-      await db.eventos.where('ordenId').equals(id).delete()
-      await db.piezas.where('ordenId').equals(id).delete()
-      if (db.adjuntos) await db.adjuntos.where('ordenId').equals(id).delete()
-      await db.ordenes.delete(id)
+    if (!window.confirm('¿Eliminar esta orden definitivamente?')) return
+    await db.ordenes.delete(id)
+  }
+
+  async function exportarDatos() {
+    if (!allOrdenes) return
+    const data = JSON.stringify(allOrdenes, null, 2)
+    download(data, `ordenes_backup_${new Date().toISOString().split('T')[0]}.json`, 'application/json')
+  }
+
+  async function importarDatos() {
+    if (!window.confirm('⚠️ Esto reemplazará todas las tablas locales. ¿Continuar?')) return
+    const data = await pickJSON()
+    if (!data || typeof data !== 'object') return alert('Archivo no válido.')
+
+    await db.transaction('rw', db.tables, async () => {
+      for (const table of db.tables) {
+        const name = table.name
+        const registros = data[name]
+        if (Array.isArray(registros)) {
+          await table.clear()
+          await table.bulkAdd(registros)
+        }
+      }
     })
-    alert('Orden eliminada correctamente')
+    alert('✅ Importación completada. Recarga la página.')
+    window.location.reload()
   }
 
-  async function handleSync() {
-    setIsSyncing(true);
-    try {
-      await forceSync(); 
-    } catch (error) {
-      alert('Error al sincronizar. Revisa la consola y la conexión.');
-    } finally {
-      setIsSyncing(false); 
-    }
+  async function sincronizarManualmente() {
+    setIsSyncing(true)
+    await forceSync()
+    setIsSyncing(false)
   }
 
+  // -------------------- Render --------------------
   return (
-    <section className="grid gap-3">
-      <div className="card"><div className="card-body">
-        <div className="grid lg:grid-cols-5 gap-2">
-          {/* ... (Filtros y inputs) ... */}
-          <input className="input" placeholder="Buscar por código, cliente, teléfono o equipo" value={q} onChange={e => setQ(e.target.value)} />
-          <select className="input" value={estado} onChange={e => setEstado(e.target.value as any)}>
-            <option value="todos">Todos</option>
-            <option value="recepcion">recepcion</option>
-            <option value="diagnostico">diagnostico</option>
-            <option value="reparacion">reparacion</option>
-            <option value="listo">listo</option>
-            <option value="entregado">entregado</option>
-          </select>
-          <input className="input" type="date" value={desde} onChange={e => setDesde(e.target.value)} />
-          <input className="input" type="date" value={hasta} onChange={e => setHasta(e.target.value)} />
-          <select className="input" value={ordenar} onChange={e => setOrdenar(e.target.value as any)}>
-            <option value="act_desc">Act. reciente</option>
-            <option value="act_asc">Act. antigua</option>
-            <option value="creada_desc">Creada reciente</option>
-            <option value="creada_asc">Creada antigua</option>
-          </select>
-        </div>
+    <section className="grid gap-4">
+      <div className="card">
+        <div className="card-body grid gap-4">
+          <div className="grid sm:grid-cols-4 gap-3">
+            <label className="sm:col-span-2">
+              <span className="text-sm text-neutral-500">Buscar (Cliente, Teléfono, Equipo)</span>
+              <input className="input w-full" value={q} onChange={e => setQ(e.target.value)} placeholder="Escribe para filtrar..." />
+            </label>
+            <label>
+              <span className="text-sm text-neutral-500">Estado</span>
+              <select className="input w-full" value={estado} onChange={e => setEstado(e.target.value as any)}>
+                <option value="todos">Todos</option>
+                <option value="recepcion">Recepción</option>
+                <option value="diagnostico">Diagnóstico</option>
+                <option value="presupuesto">Presupuesto</option>
+                <option value="reparacion">Reparación</option>
+                <option value="listo">Listo</option>
+                <option value="entregado">Entregado</option>
+              </select>
+            </label>
+            <label>
+              <span className="text-sm text-neutral-500">Ordenar por</span>
+              <select className="input w-full" value={ordenar} onChange={e => setOrdenar(e.target.value as any)}>
+                <option value="act_desc">Actualizada ↓</option>
+                <option value="act_asc">Actualizada ↑</option>
+                <option value="creada_desc">Creada ↓</option>
+                <option value="creada_asc">Creada ↑</option>
+              </select>
+            </label>
+            <label>
+              <span className="text-sm text-neutral-500">Desde</span>
+              <input type="date" className="input w-full" value={desde} onChange={e => setDesde(e.target.value)} />
+            </label>
+            <label>
+              <span className="text-sm text-neutral-500">Hasta</span>
+              <input type="date" className="input w-full" value={hasta} onChange={e => setHasta(e.target.value)} />
+            </label>
+          </div>
 
-        <div className="mt-3 flex gap-2">
-          <button className="btn" onClick={exportCSV}>Exportar CSV</button>
-          <button className="btn" onClick={importJSON}>Importar JSON</button>
-          
-          {/* 🔑 BOTÓN DE SINCRONIZACIÓN MANUAL */}
-          <button 
-            className="btn btn-secondary" 
-            onClick={handleSync}
-            disabled={isSyncing}
-          >
-            {isSyncing ? 'Sincronizando...' : 'Sincronizar ahora'}
-          </button>
+          <div className="flex gap-2 justify-end pt-2">
+            <button className="btn" onClick={exportarDatos}><Download className="size-4 mr-1" /> Exportar JSON</button>
+            <button className="btn" onClick={importarDatos}><Upload className="size-4 mr-1" /> Importar JSON</button>
+            <button className="btn btn-secondary" onClick={sincronizarManualmente} disabled={isSyncing}>{isSyncing ? 'Sincronizando...' : 'Sincronizar'}</button>
+          </div>
         </div>
-      </div></div>
-      
-      {/* ... (Tabla de Grupos) ... */}
-      <div className="card"><div className="card-body p-0">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              {/* Encabezados de la tabla */}
-            </thead>
-            <tbody>
-              {grupos.map(grupo => (
-                // 💡 FIX 1: Usar React.Fragment con la key para la lista de hijos
-                <React.Fragment key={grupo.clienteId}>
-                  {/* 💡 FIX 2: Unir <tr> y <td> para corregir la advertencia de whitespace */}
-                  <tr className="bg-neutral-100 dark:bg-neutral-800 font-semibold cursor-pointer" onClick={() => setExpandedClienteId(e => e === grupo.clienteId ? null : grupo.clienteId)}><td className="py-2 px-3 flex items-center gap-2" colSpan={8}>
-                    {expandedClienteId === grupo.clienteId ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
-                    Cliente: {grupo.nombre} ({grupo.telefono}) | Órdenes: {grupo.ordenes.length}
-                  </td></tr>
-                  {expandedClienteId === grupo.clienteId && grupo.ordenes.map(r => (
-                    // 💡 FIX 2: Unir <tr> y <td> para corregir la advertencia de whitespace
-                    <tr key={r.id} className="border-t border-neutral-200/70 dark:border-neutral-800"><td className="py-2 pr-3 pl-8">{r.codigo}</td>
-                      <td className="py-2 pr-3">{r.cliente}</td>
-                      <td className="py-2 pr-3">{r.telefono}</td>
-                      <td className="py-2 pr-3">{r.equipo}</td>
-                      <td className="py-2 pr-3">{r.estado}</td>
-                      <td className="py-2 pr-3">{new Date(r.creada).toLocaleString()}</td>
-                      <td className="py-2 pr-3">{new Date(r.actualizada).toLocaleString()}</td>
-                      <td className="py-2 flex gap-2">
-                        <button className="btn btn-primary" onClick={() => onOpen(r.id)}>Abrir</button>
-                        <button className="btn" onClick={() => eliminarOrden(r.id)}>Eliminar</button>
-                      </td>
-                    </tr>
-                  ))}
-                </React.Fragment>
-              ))}
-              {grupos.length === 0 && (
-                // 💡 FIX 2: Unir <tr> y <td> para corregir la advertencia de whitespace
-                <tr><td className="py-4 opacity-70 px-4" colSpan={8}>No se encontraron órdenes.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div></div>
+      </div>
+
+      {/* Tabla */}
+      <div className="card overflow-x-auto">
+        <table className="table-auto w-full text-sm">
+          <thead>
+            <tr className="bg-neutral-100 dark:bg-neutral-800">
+              <th className="p-2 text-left w-10"></th>
+              <th className="p-2 text-left">Cliente</th>
+              <th className="p-2 text-left">Teléfono</th>
+              <th className="p-2 text-left">Órdenes</th>
+              <th className="p-2 text-left">Última Act.</th>
+              <th className="p-2 text-left">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {grupos.map(g => (
+              <React.Fragment key={g.clienteKey}>
+                <tr className="bg-neutral-50 dark:bg-neutral-700 font-semibold cursor-pointer border-y hover:bg-neutral-100 dark:hover:bg-neutral-600" onClick={() => setExpandedCliente(expandedCliente === g.clienteKey ? null : g.clienteKey)}>
+                  <td className="py-2 px-3">{expandedCliente === g.clienteKey ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}</td>
+                  <td className="py-2 pr-3">{g.nombre}</td>
+                  <td className="py-2 pr-3">{g.telefono}</td>
+                  <td className="py-2 pr-3">{g.totalOrdenes} órdenes</td>
+                  <td className="py-2 pr-3">{new Date(g.ordenes[0].actualizada).toLocaleString()}</td>
+                  <td className="py-2 pr-3">
+                    <button className="btn btn-sm btn-secondary" onClick={e => { e.stopPropagation(); onOpen(g.ordenes[0].id) }}>Abrir</button>
+                  </td>
+                </tr>
+
+                {expandedCliente === g.clienteKey && (
+                  <tr>
+                    <td colSpan={6} className="p-0">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-neutral-50 dark:bg-neutral-800 text-xs text-neutral-500 border-b">
+                            <th className="py-2 pl-8 text-left">Código</th>
+                            <th className="py-2 text-left">Equipo</th>
+                            <th className="py-2 text-left">Estado</th>
+                            <th className="py-2 text-left">Creada</th>
+                            <th className="py-2 text-left">Actualizada</th>
+                            <th className="py-2 text-left w-20">Acción</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {g.ordenes.map(r => (
+                            <tr key={r.id} className="border-t hover:bg-neutral-50 dark:hover:bg-neutral-700">
+                              <td className="py-2 pl-8">{r.codigo}</td>
+                              <td className="py-2 leading-tight">
+                                <div><b>Aparato:</b> {r.aparato}</div>
+                                <div><b>Marca:</b> {r.marca}</div>
+                                <div><b>Modelo:</b> {r.modelo}</div>
+                              </td>
+                              <td className="py-2">{r.estado}</td>
+                              <td className="py-2">{new Date(r.creada).toLocaleString()}</td>
+                              <td className="py-2">{new Date(r.actualizada).toLocaleString()}</td>
+                              <td className="py-2 flex gap-2">
+                                <button className="btn btn-primary" onClick={() => onOpen(r.id)}>Abrir</button>
+                                <button className="btn btn-danger" onClick={() => eliminarOrden(r.id)}>Eliminar</button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
+            ))}
+            {grupos.length === 0 && (
+              <tr><td className="py-4 opacity-70 px-4" colSpan={6}>No se encontraron órdenes que coincidan con los filtros.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </section>
   )
 }
