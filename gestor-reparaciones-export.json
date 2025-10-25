@@ -1,0 +1,321 @@
+{
+  "adjuntos": [],
+  "clientes": [
+    {
+      "id": "4505153e-e606-4cc5-b3d9-e471bf322f7a",
+      "email": null,
+      "nombre": "Diego Cadiz Robot Dolphin Naranja",
+      "telefono": "639200709",
+      "fecha_alta": "2025-10-21T23:03:58.129Z"
+    },
+    {
+      "id": "65edf748-58f6-4c59-918f-d9165caf9389",
+      "email": null,
+      "nombre": "Cesar  Zarate Alhaurin",
+      "telefono": "674239009",
+      "fecha_alta": "2025-10-22T00:08:33.152Z"
+    },
+    {
+      "id": "a4c382d6-ec05-4b39-803b-6308860d7a77",
+      "email": null,
+      "nombre": "A. Alberto Yuste",
+      "telefono": "659742784",
+      "fecha_alta": "2025-10-21T22:29:24.127Z"
+    },
+    {
+      "id": "cb337e80-3a83-4534-8cf8-022d64fca71f",
+      "email": null,
+      "nombre": "cisco",
+      "telefono": "365478963",
+      "fecha_alta": "2025-10-15T03:18:38.425Z"
+    },
+    {
+      "id": "eaabbb8c-ceb6-4d74-9f31-be13c346e4c0",
+      "email": null,
+      "nombre": "Javier Barrio Cadenas",
+      "telefono": "646502618",
+      "fecha_alta": "2025-10-21T22:04:01.603Z"
+    }
+  ],
+  "equipos": [
+    {
+      "id": "05204bca-5447-4f21-ad6a-ca50ab626788",
+      "marca": "Xiaomi",
+      "modelo": "SCO_DRV V1.5",
+      "categoria": "Controladora Patinete",
+      "clienteId": "eaabbb8c-ceb6-4d74-9f31-be13c346e4c0",
+      "descripcion": "Testear",
+      "fecha_recepcion": "2025-10-21T22:14:55.890Z"
+    },
+    {
+      "id": "34f6be99-ccb4-4118-b3b7-a0bb30fbf08d",
+      "marca": "sas",
+      "modelo": "as",
+      "categoria": "movil",
+      "clienteId": "cb337e80-3a83-4534-8cf8-022d64fca71f",
+      "descripcion": "asasda",
+      "fecha_recepcion": "2025-10-15T03:18:38.425Z"
+    },
+    {
+      "id": "3ce6f6c4-cf72-4ae0-a6ca-8a81eb675e88",
+      "marca": "Bosch",
+      "modelo": "12v 6.0Ah",
+      "categoria": "Baterías",
+      "clienteId": "a4c382d6-ec05-4b39-803b-6308860d7a77",
+      "descripcion": "Falla",
+      "fecha_recepcion": "2025-10-21T22:29:24.127Z"
+    },
+    {
+      "id": "3d71a333-a438-4ae8-a39f-322543071e35",
+      "marca": "Xiaomi",
+      "modelo": "SCO_Driver V3.0",
+      "categoria": "3 Controladoras Patinete",
+      "clienteId": "eaabbb8c-ceb6-4d74-9f31-be13c346e4c0",
+      "descripcion": "Testear",
+      "fecha_recepcion": "2025-10-21T22:14:55.890Z"
+    },
+    {
+      "id": "50aeb9c2-39fd-46db-aff7-26687cca4115",
+      "marca": "Xiaomi",
+      "modelo": "SCO_DRV V1.4",
+      "categoria": "Controladora Patinete",
+      "clienteId": "eaabbb8c-ceb6-4d74-9f31-be13c346e4c0",
+      "descripcion": "testear",
+      "fecha_recepcion": "2025-10-21T22:04:01.603Z"
+    },
+    {
+      "id": "d3937f6f-2a2c-4500-ace9-716a9001cb5e",
+      "marca": "Karcher",
+      "modelo": "K7 Power",
+      "categoria": "Hidrolimpiadora",
+      "clienteId": "4505153e-e606-4cc5-b3d9-e471bf322f7a",
+      "descripcion": "Se le sale el agua por la parte de arriba, sin presion",
+      "fecha_recepcion": "2025-10-21T23:03:58.129Z"
+    },
+    {
+      "id": "d6506bd3-9282-4fc1-a03e-0da8b8406e7a",
+      "marca": "Ryobi",
+      "modelo": "RPP720",
+      "categoria": "Otros",
+      "clienteId": "65edf748-58f6-4c59-918f-d9165caf9389",
+      "descripcion": "No funciona",
+      "numeroSerie": "Pertiga cortasetos",
+      "fecha_recepcion": "2025-10-22T00:08:33.152Z"
+    },
+    {
+      "id": "e0432b3b-0666-4089-b907-0461ab43858d",
+      "marca": "Compatible Hilti",
+      "modelo": "B22/2.6",
+      "categoria": "Baterías",
+      "clienteId": "a4c382d6-ec05-4b39-803b-6308860d7a77",
+      "descripcion": "Falla",
+      "fecha_recepcion": "2025-10-21T22:29:24.127Z"
+    }
+  ],
+  "eventos": [
+    {
+      "id": "400c3445-c7a4-42c3-b652-8a082205afb2",
+      "ordenId": "a25cd1aa-01b2-4e15-aa76-836cb4d87062",
+      "tipo": "recepcion",
+      "texto": "Equipo recibido y registrado.",
+      "fecha": "2025-10-21T22:04:01.603Z"
+    },
+    {
+      "id": "4aa06cda-9886-40d4-8e79-60329afbc2d6",
+      "ordenId": "28c1bc03-c583-4549-a2fb-62fae9e2a9e3",
+      "tipo": "recepcion",
+      "texto": "Equipo recibido y registrado.",
+      "fecha": "2025-10-21T22:14:55.890Z"
+    },
+    {
+      "id": "5d7ea1bd-88d0-4714-87e9-ed3da201c1c6",
+      "ordenId": "94bc3d69-aabc-4c8c-990c-b6895ec0fa02",
+      "tipo": "estado",
+      "texto": "Estado cambiado a: diagnostico",
+      "fecha": "2025-10-21T23:04:02.133Z"
+    },
+    {
+      "id": "67af1ea7-9c09-4dbf-a149-14e47cff0fbd",
+      "ordenId": "94bc3d69-aabc-4c8c-990c-b6895ec0fa02",
+      "tipo": "recepcion",
+      "texto": "Equipo recibido y registrado.",
+      "fecha": "2025-10-21T23:03:58.129Z"
+    },
+    {
+      "id": "794d38e3-07d9-4f5f-b881-a37d332cb63b",
+      "ordenId": "e3ded76f-7583-4426-bfe3-74c507da5882",
+      "tipo": "recepcion",
+      "texto": "Equipo recibido y registrado.",
+      "fecha": "2025-10-21T22:14:55.890Z"
+    },
+    {
+      "id": "98e2074a-851c-42a4-8ee2-15256acaa695",
+      "ordenId": "34b01006-202a-4b67-bdbd-70eae99847fa",
+      "tipo": "recepcion",
+      "texto": "Equipo recibido y registrado.",
+      "fecha": "2025-10-21T22:29:24.127Z"
+    },
+    {
+      "id": "b16bbf78-a20c-4ac2-a9b4-e34c4b71aba0",
+      "ordenId": "94bc3d69-aabc-4c8c-990c-b6895ec0fa02",
+      "tipo": "estado",
+      "texto": "Estado cambiado a: reparacion",
+      "fecha": "2025-10-21T23:06:20.257Z"
+    },
+    {
+      "id": "d2dcc0a5-0387-4111-9f04-25bd0fbce221",
+      "ordenId": "94bc3d69-aabc-4c8c-990c-b6895ec0fa02",
+      "tipo": "nota",
+      "texto": "Se abre la maquina y se obserba una perdida de agua por la parte superior del bloque, se abre el bloque y se obserba agua en el aceite, se recomienda cambio de aceite y de juntas",
+      "fecha": "2025-10-21T23:06:07.072Z"
+    },
+    {
+      "id": "d4acd26f-4872-4b19-8df0-e4f4c15dbd64",
+      "ordenId": "b07b3cfa-aec2-43d8-82a2-c0cb0181f05b",
+      "tipo": "recepcion",
+      "texto": "Equipo recibido y registrado.",
+      "fecha": "2025-10-22T00:08:33.152Z"
+    },
+    {
+      "id": "e89e71c5-12c7-46bd-897b-b9029311e962",
+      "ordenId": "4518fe6b-3644-4404-853e-34884207b72d",
+      "tipo": "recepcion",
+      "texto": "Equipo recibido y registrado.",
+      "fecha": "2025-10-21T22:29:24.127Z"
+    }
+  ],
+  "ordenes": [
+    {
+      "id": "28c1bc03-c583-4549-a2fb-62fae9e2a9e3",
+      "codigo": "ORD-1761084895894",
+      "creada": "2025-10-21T22:14:55.890Z",
+      "equipo": "Xiaomi SCO_Driver V3.0",
+      "estado": "recepcion",
+      "piezas": [
+        {
+          "nombre": "",
+          "precio": 0
+        }
+      ],
+      "tarifa": 25,
+      "cliente": "Javier Barrio Cadenas",
+      "equipoId": "3d71a333-a438-4ae8-a39f-322543071e35",
+      "telefono": "646502618",
+      "actualizada": "2025-10-21T23:58:42.832Z",
+      "precioNuevo": null,
+      "horasReparacion": 1,
+      "presupuestoAprox": null,
+      "precioSegundaMano": null
+    },
+    {
+      "id": "34b01006-202a-4b67-bdbd-70eae99847fa",
+      "codigo": "ORD-1761085764129",
+      "creada": "2025-10-21T22:29:24.127Z",
+      "equipo": "Bosch 12v 6.0Ah",
+      "estado": "recepcion",
+      "cliente": "A. Alberto Yuste",
+      "equipoId": "3ce6f6c4-cf72-4ae0-a6ca-8a81eb675e88",
+      "telefono": "659742784",
+      "actualizada": "2025-10-21T22:29:24.127Z"
+    },
+    {
+      "id": "4518fe6b-3644-4404-853e-34884207b72d",
+      "codigo": "ORD-1761085764129",
+      "creada": "2025-10-21T22:29:24.127Z",
+      "equipo": "Compatible Hilti B22/2.6",
+      "estado": "recepcion",
+      "cliente": "A. Alberto Yuste",
+      "equipoId": "e0432b3b-0666-4089-b907-0461ab43858d",
+      "telefono": "659742784",
+      "actualizada": "2025-10-21T22:29:24.127Z"
+    },
+    {
+      "id": "94bc3d69-aabc-4c8c-990c-b6895ec0fa02",
+      "codigo": "ORD-1761087838131",
+      "creada": "2025-10-21T23:03:58.129Z",
+      "equipo": "Karcher K7 Power",
+      "estado": "reparacion",
+      "piezas": [
+        {
+          "nombre": "aceite 15/40",
+          "precio": 25
+        },
+        {
+          "nombre": "kit de juntas bloque motor",
+          "precio": 15
+        }
+      ],
+      "tarifa": 40,
+      "cliente": "Diego Cadiz Robot Dolphin Naranja",
+      "equipoId": "d3937f6f-2a2c-4500-ace9-716a9001cb5e",
+      "telefono": "639200709",
+      "actualizada": "2025-10-22T00:48:39.139Z",
+      "precioNuevo": 421,
+      "horasReparacion": 2,
+      "presupuestoAprox": 126,
+      "precioSegundaMano": 330
+    },
+    {
+      "id": "a25cd1aa-01b2-4e15-aa76-836cb4d87062",
+      "codigo": "ORD-1761084241606",
+      "creada": "2025-10-21T22:04:01.603Z",
+      "equipo": "Xiaomi SCO_DRV V1.4",
+      "estado": "recepcion",
+      "cliente": "Javier Barrio Cadenas",
+      "equipoId": "50aeb9c2-39fd-46db-aff7-26687cca4115",
+      "telefono": "646502618",
+      "actualizada": "2025-10-21T22:04:01.603Z"
+    },
+    {
+      "id": "b07b3cfa-aec2-43d8-82a2-c0cb0181f05b",
+      "codigo": "ORD-1761091713154",
+      "creada": "2025-10-22T00:08:33.152Z",
+      "equipo": "Ryobi RPP720",
+      "estado": "recepcion",
+      "piezas": [
+        {
+          "nombre": "",
+          "precio": 0
+        }
+      ],
+      "tarifa": 25,
+      "cliente": "Cesar  Zarate Alhaurin",
+      "equipoId": "d6506bd3-9282-4fc1-a03e-0da8b8406e7a",
+      "telefono": "674239009",
+      "actualizada": "2025-10-22T00:46:05.547Z",
+      "precioNuevo": null,
+      "horasReparacion": 1,
+      "presupuestoAprox": null,
+      "precioSegundaMano": null
+    },
+    {
+      "id": "e3ded76f-7583-4426-bfe3-74c507da5882",
+      "codigo": "ORD-1761084895894",
+      "creada": "2025-10-21T22:14:55.890Z",
+      "equipo": "Xiaomi SCO_DRV V1.5",
+      "estado": "recepcion",
+      "cliente": "Javier Barrio Cadenas",
+      "equipoId": "05204bca-5447-4f21-ad6a-ca50ab626788",
+      "telefono": "646502618",
+      "actualizada": "2025-10-21T22:14:55.890Z"
+    }
+  ],
+  "piezas": [
+    {
+      "id": "6aa4748f-2403-44f6-9371-326d51a2dc39",
+      "ordenId": "94bc3d69-aabc-4c8c-990c-b6895ec0fa02",
+      "nombre": "Juntas del bloque motor",
+      "cantidad": 1,
+      "coste": 15,
+      "estado": "pendiente"
+    },
+    {
+      "id": "a9fb2af4-1492-4215-91c6-63fc4c386fe7",
+      "ordenId": "94bc3d69-aabc-4c8c-990c-b6895ec0fa02",
+      "nombre": "Aceite 15w/40",
+      "cantidad": 1,
+      "coste": 25,
+      "estado": "pendiente"
+    }
+  ]
+}
