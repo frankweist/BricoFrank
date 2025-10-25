@@ -209,3 +209,6 @@ export function initAutoSync(intervalMs = 120000) {
   
   syncInitialized = true;
 }
+
+// Permitir ejecutar forceSync desde consola (solo para diagnóstico)
+;(window as any).forceSync = forceSync
