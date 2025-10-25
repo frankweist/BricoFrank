@@ -1,4 +1,4 @@
-﻿import { supa } from "../data/supabase.ts";
+import { supa } from "../data/supabase.ts";
 import { db } from "../data/db";
 
 const ROW_ID = "2f647c2d-8b01-447a-8959-1e35520937a6";
@@ -7,6 +7,35 @@ let syncState = "idle";
 let syncTimer: any = null;
 let syncInitialized = false;
 let pushQueueTimer: any = null;
+
+// --- NUEVO: indicador visual de sincronización ---
+function showSyncInfo(type: "push" | "pull" | "skip", date: Date) {
+  const id = "sync-toast";
+  let el = document.getElementById(id);
+  if (!el) {
+    el = document.createElement("div");
+    el.id = id;
+    el.style.position = "fixed";
+    el.style.bottom = "8px";
+    el.style.right = "8px";
+    el.style.zIndex = "9999";
+    el.style.padding = "6px 10px";
+    el.style.borderRadius = "8px";
+    el.style.fontSize = "12px";
+    el.style.background = "#1e293b";
+    el.style.color = "white";
+    el.style.opacity = "0.9";
+    document.body.appendChild(el);
+  }
+  const txt =
+    type === "push"
+      ? "Subida (Push)"
+      : type === "pull"
+      ? "Descarga (Pull)"
+      : "Sin cambios";
+  el.textContent = `Última sincronización: ${date.toLocaleString()} [${txt}]`;
+}
+// -------------------------------------------------
 
 export function getSyncState() {
   return syncState;
@@ -27,9 +56,6 @@ function setSyncState(state: string) {
   handlers.forEach((h) => h(state));
 }
 
-// ----------------------------------------------------
-//  COLA DE SUBIDA AUTOMÁTICA
-// ----------------------------------------------------
 export function queuePushToSupabase() {
   if (pushQueueTimer) clearTimeout(pushQueueTimer);
   pushQueueTimer = setTimeout(() => {
@@ -37,15 +63,12 @@ export function queuePushToSupabase() {
   }, 2000);
 }
 
-// ----------------------------------------------------
-//  SINCRONIZACIÓN MANUAL FORZADA
-// ----------------------------------------------------
 export async function forceSync() {
   setSyncState("syncing");
   console.log("⚙️ Sincronización manual forzada...");
   try {
-    await syncPush(); // Subir si procede
-    await syncPull(true); // Descargar siempre
+    await syncPush();
+    await syncPull(true);
     setSyncState("ok");
   } catch (error) {
     console.error("❌ Error en sincronización forzada:", error);
@@ -55,7 +78,7 @@ export async function forceSync() {
 }
 
 // ----------------------------------------------------
-//  PROTEGIDO: Subida condicional a Supabase
+// PROTEGIDO: Subida condicional a Supabase
 // ----------------------------------------------------
 export async function syncPush() {
   try {
@@ -69,12 +92,13 @@ export async function syncPush() {
 
     const localFecha = new Date(
       Math.max(
-        ...ordenes.map((o: any) => new Date(o.actualizada || o.creada || 0).getTime()),
+        ...ordenes.map((o: any) =>
+          new Date(o.actualizada || o.creada || 0).getTime()
+        ),
         Date.now()
       )
     );
 
-    // Obtener fecha remota
     const { data: remoteData, error: remoteErr } = await supa
       .from("backups")
       .select("fecha")
@@ -85,11 +109,11 @@ export async function syncPush() {
 
     const remoteFecha = remoteData?.fecha ? new Date(remoteData.fecha) : null;
 
-    // Comparar fechas
     if (remoteFecha && remoteFecha > localFecha) {
       console.warn("⛔ Evitado: datos locales más antiguos que los del servidor.");
+      showSyncInfo("skip", new Date());
       setSyncState("ok");
-      return; // No subir
+      return;
     }
 
     console.log("✅ Subiendo backup más reciente a Supabase...");
@@ -97,11 +121,14 @@ export async function syncPush() {
 
     const { error } = await supa
       .from("backups")
-      .upsert([{ id: ROW_ID, fecha: new Date().toISOString(), payload }], { onConflict: "id" });
+      .upsert([{ id: ROW_ID, fecha: new Date().toISOString(), payload }], {
+        onConflict: "id",
+      });
 
     if (error) throw error;
 
     console.log("✅ Backup subido correctamente.");
+    showSyncInfo("push", new Date());
     setSyncState("ok");
   } catch (err: any) {
     console.error("❌ Error en syncPush:", err.message);
@@ -110,7 +137,7 @@ export async function syncPush() {
 }
 
 // ----------------------------------------------------
-//  DESCARGA PROTEGIDA DESDE SUPABASE
+// DESCARGA PROTEGIDA DESDE SUPABASE
 // ----------------------------------------------------
 export async function syncPull(force: boolean = false) {
   try {
@@ -130,6 +157,7 @@ export async function syncPull(force: boolean = false) {
 
     if (!backupData) {
       console.log("⚠️ No se encontró backup válido en Supabase. Se mantienen los datos locales.");
+      showSyncInfo("skip", new Date());
       setSyncState("ok");
       return;
     }
@@ -161,8 +189,10 @@ export async function syncPull(force: boolean = false) {
       });
 
       console.log("✅ Datos restaurados desde Supabase.");
+      showSyncInfo("pull", new Date());
     } else {
       console.log("Datos locales más recientes o iguales. No se realiza pull.");
+      showSyncInfo("skip", new Date());
     }
 
     setSyncState("ok");
@@ -173,7 +203,7 @@ export async function syncPull(force: boolean = false) {
 }
 
 // ----------------------------------------------------
-//  SINCRONIZACIÓN AUTOMÁTICA PERIÓDICA
+// SINCRONIZACIÓN AUTOMÁTICA
 // ----------------------------------------------------
 export function initAutoSync(intervalMs = 120000) {
   if (syncInitialized) return;
@@ -210,6 +240,6 @@ export function initAutoSync(intervalMs = 120000) {
 }
 
 // ----------------------------------------------------
-//  EXPONER A CONSOLA PARA DIAGNÓSTICO
+// EXPONER FUNCIÓN A CONSOLA
 // ----------------------------------------------------
 ;(window as any).forceSync = forceSync;
