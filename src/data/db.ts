@@ -39,3 +39,6 @@ export class GRDB extends Dexie {
 }
 
 export const db = new GRDB()
+
+;(window as any).db = db
+
