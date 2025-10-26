@@ -85,10 +85,18 @@ export async function syncPush() {
     setSyncState("syncing");
     console.log("📤 Evaluando si es necesario subir a Supabase...");
 
+    // Asegurar que no hay transacciones pendientes
+    await db.transaction('r', db.ordenes, async () => {
+      await Dexie.waitFor(Promise.resolve());
+    });
+
+    // Leer las tablas completas
     const clientes = await db.clientes.toArray();
     const equipos = await db.equipos.toArray();
     const ordenes = await db.ordenes.toArray();
     const adjuntos = await db.adjuntos.toArray();
+
+    console.log(`📦 Preparando backup: ${clientes.length} clientes, ${equipos.length} equipos, ${ordenes.length} órdenes, ${adjuntos.length} adjuntos`);
 
     const localFecha = new Date(
       Math.max(
@@ -111,13 +119,20 @@ export async function syncPush() {
 
     if (remoteFecha && remoteFecha > localFecha) {
       console.warn("⛔ Evitado: datos locales más antiguos que los del servidor.");
-      showSyncInfo("skip", new Date());
+      showSyncInfo?.("skip", new Date());
       setSyncState("ok");
       return;
     }
 
     console.log("✅ Subiendo backup más reciente a Supabase...");
-    const payload = { clientes, equipos, ordenes, adjuntos, fecha: new Date().toISOString() };
+
+    const payload = {
+      clientes,
+      equipos,
+      ordenes,
+      adjuntos,
+      fecha: new Date().toISOString(),
+    };
 
     const { error } = await supa
       .from("backups")
@@ -128,13 +143,14 @@ export async function syncPush() {
     if (error) throw error;
 
     console.log("✅ Backup subido correctamente.");
-    showSyncInfo("push", new Date());
+    showSyncInfo?.("push", new Date());
     setSyncState("ok");
   } catch (err: any) {
     console.error("❌ Error en syncPush:", err.message);
     setSyncState("error");
   }
 }
+
 
 // ----------------------------------------------------
 // DESCARGA PROTEGIDA DESDE SUPABASE
