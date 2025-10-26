@@ -87,47 +87,56 @@ export async function syncPush() {
     setSyncState("syncing");
     console.log("📤 Evaluando si es necesario subir a Supabase...");
 
-    // Asegurar que no hay transacciones pendientes
-    await db.transaction('r', db.ordenes, async () => {
-      await Dexie.waitFor(Promise.resolve());
-    });
-
-    // Leer las tablas completas
+    // Leer datos locales completos
     const clientes = await db.clientes.toArray();
     const equipos = await db.equipos.toArray();
     const ordenes = await db.ordenes.toArray();
     const adjuntos = await db.adjuntos.toArray();
 
-    console.log(`📦 Preparando backup: ${clientes.length} clientes, ${equipos.length} equipos, ${ordenes.length} órdenes, ${adjuntos.length} adjuntos`);
-
-    const localFecha = new Date(
-      Math.max(
-        ...ordenes.map((o: any) =>
-          new Date(o.actualizada || o.creada || 0).getTime()
-        ),
-        Date.now()
-      )
+    console.log(
+      `📦 Preparando backup local: ${clientes.length} clientes, ${equipos.length} equipos, ${ordenes.length} órdenes`
     );
 
+    // --- Leer backup remoto actual ---
     const { data: remoteData, error: remoteErr } = await supa
       .from("backups")
-      .select("fecha")
+      .select("payload, fecha")
       .eq("id", ROW_ID)
       .single();
 
     if (remoteErr && remoteErr.code !== "PGRST116") throw remoteErr;
 
+    const remoteBackup = remoteData?.payload;
+    const remoteOrdenes = remoteBackup?.ordenes?.length || 0;
     const remoteFecha = remoteData?.fecha ? new Date(remoteData.fecha) : null;
 
-    if (remoteFecha && remoteFecha > localFecha) {
-      console.warn("⛔ Evitado: datos locales más antiguos que los del servidor.");
-      showSyncInfo?.("skip", new Date());
+    const localFecha = new Date(
+      Math.max(
+        ...ordenes.map(o => new Date(o.actualizada || o.creada || 0).getTime()),
+        Date.now()
+      )
+    );
+
+    // --- Protección: no sobrescribir si la local parece incompleta ---
+    if (remoteOrdenes > ordenes.length) {
+      console.warn(
+        `⛔ Evitado: la base local (${ordenes.length}) tiene menos órdenes que la remota (${remoteOrdenes}). No se sube.`
+      );
       setSyncState("ok");
       return;
     }
 
-    console.log("✅ Subiendo backup más reciente a Supabase...");
+    // --- Comprobar si el remoto es más reciente ---
+    if (remoteFecha && remoteFecha > localFecha) {
+      console.warn(
+        "⛔ Evitado: el backup remoto es más reciente. No se sube nada."
+      );
+      setSyncState("ok");
+      return;
+    }
 
+    // --- Subir el backup ---
+    console.log("✅ Subiendo backup más reciente a Supabase...");
     const payload = {
       clientes,
       equipos,
@@ -145,13 +154,13 @@ export async function syncPush() {
     if (error) throw error;
 
     console.log("✅ Backup subido correctamente.");
-    showSyncInfo?.("push", new Date());
     setSyncState("ok");
   } catch (err: any) {
     console.error("❌ Error en syncPush:", err.message);
     setSyncState("error");
   }
 }
+
 
 
 // ----------------------------------------------------
