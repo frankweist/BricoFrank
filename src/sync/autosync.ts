@@ -1,5 +1,7 @@
+import Dexie from 'dexie'
 import { supa } from "../data/supabase.ts";
 import { db } from "../data/db";
+
 
 const ROW_ID = "2f647c2d-8b01-447a-8959-1e35520937a6";
 
