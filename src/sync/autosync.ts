@@ -156,21 +156,30 @@ export async function syncPull(force: boolean = false) {
     const remoteDate = data?.fecha ? new Date(data.fecha) : null;
 
     if (!backupData) {
-      console.log("⚠️ No se encontró backup válido en Supabase. Se mantienen los datos locales.");
-      showSyncInfo("skip", new Date());
+      console.log("⚠️ No se encontró backup válido en Supabase.");
       setSyncState("ok");
       return;
     }
 
+    // Datos locales
     const localOrdenCount = await db.ordenes.count();
     const latestLocalOrder = await db.ordenes.orderBy("actualizada").last();
-    const remoteIsNewer =
-      remoteDate && remoteDate > new Date(latestLocalOrder?.actualizada || 0);
+    const localDate = latestLocalOrder
+      ? new Date(latestLocalOrder.actualizada || latestLocalOrder.creada)
+      : new Date(0);
+
+    // --- Comparación corregida ---
+    const delta = remoteDate && localDate ? (remoteDate.getTime() - localDate.getTime()) : 0;
+    const remoteIsNewer = delta > 5000; // más de 5 segundos de diferencia se considera más nuevo
 
     if (localOrdenCount === 0 || force || remoteIsNewer) {
       console.log(
         `🔄 Restaurando backup remoto. Causa: ${
-          localOrdenCount === 0 ? "Local vacío" : force ? "Forzado" : "Remoto más reciente"
+          localOrdenCount === 0
+            ? "Local vacío"
+            : force
+            ? "Sincronización forzada"
+            : `Remoto más reciente (+${Math.round(delta / 1000)}s)`
         }`
       );
 
@@ -189,10 +198,10 @@ export async function syncPull(force: boolean = false) {
       });
 
       console.log("✅ Datos restaurados desde Supabase.");
-      showSyncInfo("pull", new Date());
+      showSyncInfo?.("pull", new Date());
     } else {
       console.log("Datos locales más recientes o iguales. No se realiza pull.");
-      showSyncInfo("skip", new Date());
+      showSyncInfo?.("skip", new Date());
     }
 
     setSyncState("ok");
@@ -201,6 +210,7 @@ export async function syncPull(force: boolean = false) {
     setSyncState("error");
   }
 }
+
 
 // ----------------------------------------------------
 // SINCRONIZACIÓN AUTOMÁTICA
