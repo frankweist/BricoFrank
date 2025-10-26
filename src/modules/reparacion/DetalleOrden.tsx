@@ -25,6 +25,7 @@ type Orden = {
   equipo: EquipoData;
   equipoId?: string;
   trabajoRealizado?: string;
+  ubicacion?: string;
   archivos?: string[] | null;
   creada: string;
 };
@@ -94,6 +95,7 @@ export function DetalleOrden({
   const [remoteFiles, setRemoteFiles] = useState<any[]>([]);
   const [localFiles, setLocalFiles] = useState<File[] | null>(null);
   const [trabajoRealizado, setTrabajoRealizado] = useState("");
+  const [ubicacion, setUbicacion] = useState("");
   const [equipoExtra, setEquipoExtra] = useState<any>(null);
 
   const orden = useLiveQuery(
@@ -110,7 +112,10 @@ export function DetalleOrden({
   }, [orden]);
 
   useEffect(() => {
-    if (orden) setTrabajoRealizado(orden.trabajoRealizado || "");
+    if (orden) {
+      setTrabajoRealizado(orden.trabajoRealizado || "");
+      setUbicacion(orden.ubicacion || "");
+    }
   }, [orden]);
 
   useEffect(() => {
@@ -121,17 +126,19 @@ export function DetalleOrden({
     })();
   }, [ordenId]);
 
+  // Guardado automático de trabajo y ubicación
   useEffect(() => {
-    if (!orden || trabajoRealizado === (orden.trabajoRealizado || "")) return;
-    const t = setTimeout(async () => {
+    if (!orden) return;
+    const timeout = setTimeout(async () => {
       await db.ordenes.update(ordenId, {
         trabajoRealizado,
+        ubicacion,
         actualizada: new Date().toISOString(),
       });
       setToast("Guardado automático.");
-    }, 1000);
-    return () => clearTimeout(t);
-  }, [trabajoRealizado, orden, ordenId]);
+    }, 1200);
+    return () => clearTimeout(timeout);
+  }, [trabajoRealizado, ubicacion]);
 
   async function actualizarEstado(e: string) {
     await db.ordenes.update(ordenId, {
@@ -160,6 +167,44 @@ export function DetalleOrden({
     const updated = (orden?.archivos || []).filter((f) => f !== name);
     await db.ordenes.update(ordenId, { archivos: updated });
     setToast(`Adjunto eliminado: ${name}`);
+  }
+
+  // Etiqueta térmica 57mm
+  function imprimirEtiqueta() {
+    if (!orden) return;
+    const cliente =
+      typeof orden.cliente === "object"
+        ? orden.cliente.nombre
+        : (orden.cliente as string);
+    const win = window.open("", "_blank", "width=240,height=350");
+    if (win) {
+      win.document.write(`
+        <html>
+        <body style="font-family: monospace; font-size:11px; margin:8px; line-height:1.3;">
+          <div style="text-align:center;">
+            <h4 style="margin:4px 0;">📦 ENTRADA TALLER</h4>
+            <hr style="border:0;border-top:1px dashed #000;margin:4px 0;"/>
+          </div>
+          <p><b>ORDEN:</b> ${orden.codigo}</p>
+          <p><b>CLIENTE:</b> ${cliente}</p>
+          <p><b>EQUIPO:</b> ${
+            typeof orden.equipo === "object"
+              ? orden.equipo.aparato || "—"
+              : orden.equipo
+          }</p>
+          <p><b>UBICACIÓN:</b> ${ubicacion || "—"}</p>
+          <p><b>FECHA:</b> ${new Date(orden.creada).toLocaleDateString()}</p>
+          <hr style="border:0;border-top:1px dashed #000;margin:6px 0;"/>
+          <p style="text-align:center;">BricoFrank Reparaciones</p>
+          <script>
+            window.print();
+            setTimeout(()=>window.close(),500);
+          </script>
+        </body>
+        </html>
+      `);
+      win.document.close();
+    }
   }
 
   if (!orden) return <p className="text-sm opacity-70">Cargando detalles...</p>;
@@ -228,6 +273,23 @@ export function DetalleOrden({
               <b>Descripción:</b> {equipo.descripcion}
             </p>
           </div>
+        </div>
+      </div>
+
+      {/* Nueva tarjeta: Ubicación física */}
+      <div className="card">
+        <div className="card-body">
+          <h2 className="text-lg font-semibold mb-2">Ubicación física</h2>
+          <input
+            type="text"
+            className="input w-full"
+            value={ubicacion}
+            placeholder="Ejemplo: Estantería A3 / Caja 7"
+            onChange={(e) => setUbicacion(e.target.value)}
+          />
+          <button className="btn btn-secondary mt-3" onClick={imprimirEtiqueta}>
+            🖨️ Imprimir etiqueta
+          </button>
         </div>
       </div>
 

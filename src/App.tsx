@@ -63,10 +63,10 @@ export function App() {
               >
                 ← Volver a Órdenes
               </button>
-              <DetalleOrden
-                ordenId={selId}
-                onNavigateToBudget={navigateToPresupuesto}
-              />
+              <DetalleOrden ordenId={selId} onNavigateToBudget={navigateToPresupuesto} />
+
+
+
             </>
           ) : (
             <div className="card">
