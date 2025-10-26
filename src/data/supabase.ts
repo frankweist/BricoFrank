@@ -10,3 +10,37 @@ export const supa = createClient<Database>(supabaseUrl, supabaseAnonKey)
 
 // --- Exponer en ventana global para depuración ---
 ;(window as any).supa = supa
+
+// --- Indicador visual de conexión Supabase ---
+;(async () => {
+  try {
+    const { data, error } = await supa.from('backups').select('id').limit(1)
+    const ok = data && !error
+    const el = document.createElement('div')
+    el.textContent = ok ? '🟢 Conectado a Supabase' : '🔴 Error de conexión con Supabase'
+    el.style.position = 'fixed'
+    el.style.bottom = '8px'
+    el.style.left = '8px'
+    el.style.padding = '6px 10px'
+    el.style.fontSize = '12px'
+    el.style.borderRadius = '6px'
+    el.style.background = ok ? '#064e3b' : '#7f1d1d'
+    el.style.color = 'white'
+    el.style.zIndex = '9999'
+    document.body.appendChild(el)
+  } catch (e) {
+    const el = document.createElement('div')
+    el.textContent = '🔴 Error de conexión con Supabase'
+    el.style.position = 'fixed'
+    el.style.bottom = '8px'
+    el.style.left = '8px'
+    el.style.padding = '6px 10px'
+    el.style.fontSize = '12px'
+    el.style.borderRadius = '6px'
+    el.style.background = '#7f1d1d'
+    el.style.color = 'white'
+    el.style.zIndex = '9999'
+    document.body.appendChild(el)
+  }
+})()
+
