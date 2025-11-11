@@ -8,6 +8,9 @@ export class GRDB extends Dexie {
   eventos!: Table<Evento, string>
   piezas!: Table<Pieza, string>
   adjuntos!: Table<Adjunto, string>
+  componentes!: Table<{id:string; tipo:string; nombre:string; cantidad:number; ubicacion?:string; fecha_alta:string}, string>
+  equivalencias!: Table<{id:string; origen:string; sustituto:string; notas?:string; fecha:string}, string>;
+
 
   constructor() {
     super('gestor-reparaciones')
@@ -16,7 +19,10 @@ export class GRDB extends Dexie {
       equipos: 'id, clienteId, marca, modelo, fecha_recepcion',
       ordenes: 'id, codigo, equipoId, estado, creada, actualizada',
       eventos: 'id, ordenId, fecha',
-      piezas:  'id, ordenId, estado'
+      piezas:  'id, ordenId, estado',
+	  componentes: 'id, tipo, nombre',
+	  equivalencias: 'id, origen, sustituto',
+
     })
     this.version(2).stores({
       clientes: 'id, nombre, telefono, fecha_alta',

@@ -26,6 +26,7 @@ type Orden = {
   equipoId?: string;
   trabajoRealizado?: string;
   ubicacion?: string;
+  ultimaImpresion?: string;
   archivos?: string[] | null;
   creada: string;
 };
@@ -96,6 +97,7 @@ export function DetalleOrden({
   const [localFiles, setLocalFiles] = useState<File[] | null>(null);
   const [trabajoRealizado, setTrabajoRealizado] = useState("");
   const [ubicacion, setUbicacion] = useState("");
+  const [saving, setSaving] = useState(false);
   const [equipoExtra, setEquipoExtra] = useState<any>(null);
 
   const orden = useLiveQuery(
@@ -126,16 +128,23 @@ export function DetalleOrden({
     })();
   }, [ordenId]);
 
-  // Guardado automático de trabajo y ubicación
+  // Guardado automático con verificación
   useEffect(() => {
     if (!orden) return;
     const timeout = setTimeout(async () => {
-      await db.ordenes.update(ordenId, {
-        trabajoRealizado,
-        ubicacion,
-        actualizada: new Date().toISOString(),
-      });
-      setToast("Guardado automático.");
+      if (
+        trabajoRealizado !== orden.trabajoRealizado ||
+        ubicacion !== orden.ubicacion
+      ) {
+        setSaving(true);
+        await db.ordenes.update(ordenId, {
+          trabajoRealizado,
+          ubicacion,
+          actualizada: new Date().toISOString(),
+        });
+        setSaving(false);
+        setToast("💾 Guardado automático.");
+      }
     }, 1200);
     return () => clearTimeout(timeout);
   }, [trabajoRealizado, ubicacion]);
@@ -169,13 +178,14 @@ export function DetalleOrden({
     setToast(`Adjunto eliminado: ${name}`);
   }
 
-  // Etiqueta térmica 57mm
-  function imprimirEtiqueta() {
+  // Etiqueta térmica 57mm + registro
+  async function imprimirEtiqueta() {
     if (!orden) return;
     const cliente =
       typeof orden.cliente === "object"
         ? orden.cliente.nombre
         : (orden.cliente as string);
+
     const win = window.open("", "_blank", "width=240,height=350");
     if (win) {
       win.document.write(`
@@ -205,6 +215,13 @@ export function DetalleOrden({
       `);
       win.document.close();
     }
+
+    // Registrar la impresión
+    await db.ordenes.update(ordenId, {
+      ultimaImpresion: new Date().toISOString(),
+      actualizada: new Date().toISOString(),
+    });
+    setToast("🖨️ Etiqueta impresa y registrada.");
   }
 
   if (!orden) return <p className="text-sm opacity-70">Cargando detalles...</p>;
@@ -238,7 +255,15 @@ export function DetalleOrden({
       <div className="card">
         <div className="card-body grid sm:grid-cols-2 gap-4">
           <div>
-            <h2 className="text-lg font-semibold">Cliente</h2>
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              Cliente{" "}
+              {saving && (
+                <span className="text-xs text-yellow-600">⏳ Guardando...</span>
+              )}
+              {!saving && toast?.includes("Guardado") && (
+                <span className="text-xs text-green-600">💾 Guardado</span>
+              )}
+            </h2>
             <p>
               <b>Nombre:</b> {cliente.nombre}
             </p>
@@ -290,6 +315,13 @@ export function DetalleOrden({
           <button className="btn btn-secondary mt-3" onClick={imprimirEtiqueta}>
             🖨️ Imprimir etiqueta
           </button>
+
+          {orden.ultimaImpresion && (
+            <p className="text-xs opacity-70 mt-2">
+              Última impresión:{" "}
+              {new Date(orden.ultimaImpresion).toLocaleString()}
+            </p>
+          )}
         </div>
       </div>
 

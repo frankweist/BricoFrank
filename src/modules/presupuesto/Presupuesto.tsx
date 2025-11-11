@@ -1,338 +1,398 @@
-// Archivo: Presupuesto.tsx (V2.1 - Conexión de Datos y Lógica Completa)
+import { useEffect, useMemo, useState, useCallback } from "react";
+import { useLiveQuery } from "dexie-react-hooks";
+import { db } from "../../data/db";
 
-import { useState, useEffect, useCallback, ReactNode } from "react";
-import { useLiveQuery } from "dexie-react-hooks"; 
-import { db } from "../../data/db"; 
+type Pieza = { nombre: string; precio: number };
 
-type Pieza = {
-  nombre: string;
-  precio: number; 
-};
+type ClienteData =
+  | { nombre: string; telefono?: string; email?: string }
+  | string
+  | undefined;
 
-type Orden = { 
-  id: string, 
-  presupuestoAprox: number | null,
-  horasReparacion: number,
-  tarifa: number,
-  piezas: any[],
-  precioNuevo: number | null,
-  precioSegundaMano: number | null,
-  cliente: { nombre: string, telefono: string }, 
-  equipo: { categoria: string, marca: string, modelo: string, numeroSerie?: string, descripcion: string } 
-};
-
-// --- Componentes de utilidad ---
-
-function KPI({label, value, strong}:{label:string; value:number; strong?:boolean}){
-  return (<div className="card"><div className="card-body">
-    <div className="text-sm text-neutral-500 dark:text-neutral-400">{label}</div>
-    <div className={`text-xl ${strong?'font-bold':''}`}>{value.toFixed(2)}</div>
-  </div></div>)
-}
-function Field({label, children}:{label:string; children:ReactNode}){
-  return (<label className="grid gap-1"><span className="text-sm text-neutral-500 dark:text-neutral-400">{label}</span>{children}</label>)
-}
-
-// Función para estimar horas
-const estimarHoras = (aparato: string = '', dano: string = ''): number => {
-  let horasBase = 1.0;
-  const danoLower = dano.toLowerCase();
-  const aparatoLower = aparato.toLowerCase();
-
-  if (aparatoLower.includes("móvil")) horasBase = 1.5;
-  else if (aparatoLower.includes("ordenador")) horasBase = 2.0;
-  else if (aparatoLower.includes("placa") || danoLower.includes("líquido")) horasBase = 3.0;
-  
-  if (danoLower.includes("pantalla") || danoLower.includes("batería")) horasBase += 0.5;
-  if (danoLower.includes("componente") || danoLower.includes("soldadura")) horasBase += 1.0;
-  
-  return Math.max(0.5, Math.round(horasBase * 2) / 2); 
-};
-
-
-export function Presupuesto({ ordenId }: { ordenId: string | undefined }){ // 🔑 Recibe ordenId
-  // 1. Carga los datos de la orden
-  const orden = useLiveQuery(
-    () => ordenId ? db.ordenes.get(ordenId) : Promise.resolve(undefined), 
-    [ordenId]
-  ) as Orden | undefined;
-  
-  // 2. Estados para los datos de cálculo
-  const [piezas, setPiezas] = useState<Pieza[]>([{ nombre: "", precio: 0 }]);
-  const [horasReparacion, setHorasReparacion] = useState<number>(0);
-  const [precioNuevo, setPrecioNuevo] = useState<number | ''>('');
-  const [precioSegundaMano, setPrecioSegundaMano] = useState<number | ''>('');
-  const [tarifa,setTarifa]=useState(25); 
-  const [presupuestoAprox, setPresupuestoAprox] = useState<number | null>(null);
-
-  // Parámetros de negocio
-  const margenPiezas = 1.15; 
-  const topeSegundaManoFactor = 0.8; 
-
-  // FUNCIÓN DE GUARDADO AUTOMÁTICO
-  const guardarCambios = useCallback(async (dataToSave: any) => {
-    if (!ordenId) return;
-    try {
-      await db.ordenes.update(ordenId, {
-        piezas: dataToSave.piezas,
-        horasReparacion: dataToSave.horasReparacion,
-        precioNuevo: dataToSave.precioNuevo,
-        precioSegundaMano: dataToSave.precioSegundaMano,
-        tarifa: dataToSave.tarifa,
-        presupuestoAprox: dataToSave.presupuestoAprox,
-        actualizada: new Date().toISOString()
-      });
-    } catch (error) {
-      console.error("Error guardando presupuesto:", error);
+type EquipoData =
+  | {
+      aparato?: string;
+      marca?: string;
+      modelo?: string;
+      numeroSerie?: string;
+      descripcion?: string;
     }
+  | string
+  | undefined;
+
+type Orden = {
+  id: string;
+  codigo?: string;
+  codigo_orden?: string;
+  estado?: string;
+  creada?: string; // ISO
+  fecha_creacion?: string; // compat
+  presupuestoAprox?: number | null;
+  horasReparacion?: number;
+  tarifa?: number;
+  piezas?: Pieza[];
+  cliente?: ClienteData;
+  telefono?: string; // compat cuando cliente sea string
+  equipo?: EquipoData;
+  equipoId?: string;
+};
+
+function getClienteNombre(c: ClienteData, telefono?: string) {
+  if (!c) return "—";
+  if (typeof c === "string") return `${c}${telefono ? ` (${telefono})` : ""}`;
+  return c.nombre || "—";
+}
+
+function getEquipoTexto(e: EquipoData) {
+  if (!e) return "—";
+  if (typeof e === "string") return e || "—";
+  const partes = [
+    e.aparato || "",
+    e.marca || "",
+    e.modelo || "",
+    e.numeroSerie ? `SN:${e.numeroSerie}` : "",
+  ].filter(Boolean);
+  return partes.join(" ").trim() || "—";
+}
+
+function parseFecha(o: Orden): number {
+  const f = o.creada || o.fecha_creacion;
+  return f ? new Date(f).getTime() : 0;
+}
+
+export function Presupuesto({ ordenId }: { ordenId?: string }) {
+  // ======= Estado de selección =======
+  const [seleccionadaId, setSeleccionadaId] = useState<string | undefined>(
+    ordenId
+  );
+  useEffect(() => {
+    setSeleccionadaId(ordenId);
   }, [ordenId]);
-  
-  
-  // EFECTO 1: Carga los datos del presupuesto guardado si existen
+
+  // ======= Listado de órdenes (todas) + búsqueda =======
+  const todas = useLiveQuery(async () => {
+    const arr = await db.ordenes.toArray();
+    // Orden de llegada: asc por fecha de creación
+    return arr.sort((a, b) => parseFecha(a as any) - parseFecha(b as any)) as Orden[];
+  }, []) as Orden[] | undefined;
+
+  const [q, setQ] = useState("");
+  const filtradas = useMemo(() => {
+    if (!todas) return [];
+    const term = q.trim().toLowerCase();
+    if (!term) return todas;
+    return todas.filter((o) => {
+      const codigo = (o.codigo || o.codigo_orden || "").toLowerCase();
+      const cliente = getClienteNombre(o.cliente, o.telefono).toLowerCase();
+      const equipo = getEquipoTexto(o.equipo).toLowerCase();
+      return (
+        codigo.includes(term) ||
+        cliente.includes(term) ||
+        equipo.includes(term)
+      );
+    });
+  }, [todas, q]);
+
+  // ======= Carga de la orden activa =======
+  const orden = useLiveQuery(
+    () =>
+      seleccionadaId
+        ? (db.ordenes.get(seleccionadaId) as Promise<Orden | undefined>)
+        : Promise.resolve(undefined),
+    [seleccionadaId]
+  );
+
+  // ======= Estado editable =======
+  const [cliente, setCliente] = useState<any>(null);
+  const [equipo, setEquipo] = useState<any>(null);
+  const [piezas, setPiezas] = useState<Pieza[]>([{ nombre: "", precio: 0 }]);
+  const [horas, setHoras] = useState<number>(0);
+  const [tarifa, setTarifa] = useState<number>(25);
+  const [precioNuevo, setPrecioNuevo] = useState<number | "">("");
+  const [precioSegundaMano, setPrecioSegundaMano] = useState<number | "">("");
+  const [presupuesto, setPresupuesto] = useState<number | null>(null);
+
+  // Cargar datos de la orden seleccionada
   useEffect(() => {
-    if (orden) {
-      // Cargamos valores defensivos
-      const initialPiezas = orden.piezas && orden.piezas.length > 0 ? orden.piezas : [{ nombre: "", precio: 0 }];
-      setPiezas(initialPiezas);
-      setTarifa(orden.tarifa || 25);
-      setPrecioNuevo(orden.precioNuevo ?? '');
-      setPrecioSegundaMano(orden.precioSegundaMano ?? '');
-      setPresupuestoAprox(orden.presupuestoAprox ?? null);
+    if (!orden) return;
 
-      if (orden.horasReparacion) {
-        setHorasReparacion(orden.horasReparacion);
-      } else if (orden.equipo) {
-        // Genera horas estimadas por defecto si no existen
-        setHorasReparacion(estimarHoras(orden.equipo.categoria, orden.equipo.descripcion));
-      }
-    } else {
-        // Restablecer si no hay orden seleccionada
-        setPiezas([{ nombre: "", precio: 0 }]);
-        setHorasReparacion(0);
-        setPrecioNuevo('');
-        setPrecioSegundaMano('');
-        setTarifa(25);
-        setPresupuestoAprox(null);
-    }
-  }, [orden]); 
+    // cliente
+    if (typeof orden.cliente === "object") setCliente(orden.cliente);
+    else
+      setCliente({
+        nombre:
+          (typeof orden.cliente === "string" && orden.cliente) ||
+          "—",
+        telefono: orden.telefono || "—",
+      });
 
-  // EFECTO 2: Guarda los cambios cada vez que estos estados se actualizan
-  useEffect(() => {
-    // Solo guardar si hay una orden y se han calculado las horas
-    if (!orden || horasReparacion === 0) return; 
+    // equipo
+    if (typeof orden.equipo === "object") setEquipo(orden.equipo);
+    else setEquipo({ aparato: orden.equipo || "—" });
 
-    const dataToSave = {
-      // Solo guardar piezas que tienen nombre o precio
-      piezas: piezas.filter(p => p.nombre || p.precio > 0), 
-      horasReparacion,
-      precioNuevo: precioNuevo === '' ? null : Number(precioNuevo),
-      precioSegundaMano: precioSegundaMano === '' ? null : Number(precioSegundaMano),
-      tarifa,
-      presupuestoAprox
-    }
-    
-    guardarCambios(dataToSave);
-  }, [piezas, horasReparacion, precioNuevo, precioSegundaMano, tarifa, presupuestoAprox, orden, guardarCambios]);
-
-
-  // Manejadores de estado (addPieza, removePieza, updatePieza)
-  const addPieza = () => setPiezas(prev => [...prev, { nombre: "", precio: 0 }]);
-  const removePieza = (i: number) => setPiezas(prev => prev.length > 1 ? prev.filter((_, idx) => idx !== i) : prev);
-  const updatePieza = (i: number, patch: Partial<Pieza>) => {
-    setPiezas(prev => prev.map((p, idx) => idx === i ? { ...p, ...patch } : p));
-  };
-
-  const generarHorasEstimadas = useCallback(() => {
-    if (orden?.equipo) {
-      const { categoria, descripcion } = orden.equipo;
-      const estimado = estimarHoras(categoria, descripcion);
-      setHorasReparacion(estimado);
-    }
+    // otros campos
+    setPiezas(orden.piezas?.length ? (orden.piezas as Pieza[]) : [{ nombre: "", precio: 0 }]);
+    setTarifa(orden.tarifa || 25);
+    setHoras(orden.horasReparacion || 0);
+    // En tu schema anterior estos campos no estaban persistidos siempre; mantenemos compat
+    // Si existen en orden, preferir; si no, mantener último estado
+    // Para precios de referencia se usan claves locales en esta vista
+    setPrecioNuevo((orden as any).precioNuevo ?? "");
+    setPrecioSegundaMano((orden as any).precioSegundaMano ?? "");
+    setPresupuesto(orden.presupuestoAprox ?? null);
   }, [orden]);
 
-  // Lógica del cálculo
-  const calcularPresupuesto = () => {
-    if (!orden || !orden.equipo || horasReparacion <= 0) {
-        setPresupuestoAprox(null);
-        return;
-    }
+  // ======= Guardado automático con debounce =======
+  const guardar = useCallback(
+    async (patch?: Partial<Orden> & Record<string, any>) => {
+      if (!seleccionadaId) return;
+      await db.ordenes.update(seleccionadaId, {
+        piezas,
+        horasReparacion: horas,
+        tarifa,
+        precioNuevo: precioNuevo === "" ? null : Number(precioNuevo),
+        precioSegundaMano:
+          precioSegundaMano === "" ? null : Number(precioSegundaMano),
+        presupuestoAprox: presupuesto,
+        actualizada: new Date().toISOString(),
+        ...(patch || {}),
+      });
+    },
+    [seleccionadaId, piezas, horas, tarifa, precioNuevo, precioSegundaMano, presupuesto]
+  );
 
-    const costoManoObra = horasReparacion * tarifa;
-    // Solo sumar piezas con nombre o precio > 0
-    const piezasValidas = piezas.filter(p => p.nombre || p.precio > 0);
-    const costoPiezasBruto = piezasValidas.reduce((sum, p) => sum + p.precio, 0);
-    const costoPiezasConMargen = costoPiezasBruto * margenPiezas;
-    let total = costoManoObra + costoPiezasConMargen;
+  useEffect(() => {
+    if (!orden) return;
+    const t = setTimeout(() => guardar(), 600);
+    return () => clearTimeout(t);
+  }, [piezas, horas, tarifa, precioNuevo, precioSegundaMano, presupuesto, orden, guardar]);
 
-    const segMano = Number(precioSegundaMano) || 0;
-    if (segMano > 0) {
-      const topeMaximo = segMano * topeSegundaManoFactor; 
-      if (total > topeMaximo) {
-        total = topeMaximo; 
-      }
-    }
-    
-    const resultado = Math.round(total * 100) / 100;
-    setPresupuestoAprox(resultado);
+  // ======= Cálculo =======
+  const calcular = () => {
+    const subtotal =
+      horas * tarifa + piezas.reduce((s, p) => s + (p.precio || 0), 0) * 1.15;
+    const total =
+      precioSegundaMano && subtotal > Number(precioSegundaMano) * 0.8
+        ? Number(precioSegundaMano) * 0.8
+        : subtotal;
+    setPresupuesto(Math.round(total * 100) / 100);
   };
-  // --------------------------------------------------------------------
 
-  // === VALIDACIONES INICIALES ===
-  if (!ordenId) {
-      return <div className="card"><div className="card-body">Selecciona una orden desde **"Órdenes"** para presupuestar.</div></div>;
+  // ======= Render =======
+  // Vista listado cuando no hay orden seleccionada
+  if (!seleccionadaId) {
+    return (
+      <section className="grid gap-4">
+        <div className="card">
+          <div className="card-body grid gap-3">
+            <h2 className="text-lg font-semibold">Órdenes (todas)</h2>
+
+            <input
+              className="input"
+              placeholder="Buscar por código, cliente o equipo…"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+
+            {!todas && (
+              <p className="text-sm opacity-70">Cargando órdenes…</p>
+            )}
+
+            {todas && filtradas.length === 0 && (
+              <p className="text-sm opacity-70">Sin resultados.</p>
+            )}
+
+            {todas && filtradas.length > 0 && (
+              <div className="grid gap-2">
+                {filtradas.map((o) => (
+                  <button
+                    key={o.id}
+                    className="text-left border p-2 rounded hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                    onClick={() => setSeleccionadaId(o.id)}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="font-semibold">
+                        {o.codigo || o.codigo_orden || o.id.slice(0, 8)}
+                      </div>
+                      <div className="text-xs opacity-70">
+                        {new Date(parseFecha(o)).toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="text-sm">
+                      <span className="opacity-70">Cliente:</span>{" "}
+                      {getClienteNombre(o.cliente, o.telefono)}
+                    </div>
+                    <div className="text-sm">
+                      <span className="opacity-70">Equipo:</span>{" "}
+                      {getEquipoTexto(o.equipo)}
+                    </div>
+                    {o.estado && (
+                      <div className="text-xs mt-1">
+                        <span className="opacity-70">Estado:</span> {o.estado}
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+    );
   }
-  if (!orden) {
-      return <p className="text-sm opacity-70">Cargando detalles de la orden (ID: {ordenId})...</p>;
-  }
-  if (!orden.cliente || !orden.equipo) {
-      return <p className="text-sm text-red-500">No se encontraron detalles completos (cliente/equipo) para la orden {ordenId}.</p>;
-  }
-  // === FIN VALIDACIONES INICIALES ===
 
-  const { cliente, equipo } = orden;
-  const costoPiezasBruto = piezas.filter(p => p.nombre || p.precio > 0).reduce((sum, p) => sum + p.precio, 0);
-  const costoPiezasConMargen = costoPiezasBruto * margenPiezas;
-  const manoObra = horasReparacion * tarifa;
-  const subtotal = manoObra + costoPiezasConMargen;
-
-  // Piezas válidas para la validación del botón
-  const piezasValidas = piezas.filter(p => p.nombre || p.precio > 0);
-  // Condición para deshabilitar el botón de cálculo
-  const disableCalculate = horasReparacion <= 0 || !piezasValidas.every(p => p.nombre && p.precio >= 0);
-
+  // Vista de edición cuando hay orden seleccionada
+  if (!orden)
+    return (
+      <p className="text-sm opacity-70">
+        Cargando datos de la orden ({seleccionadaId})...
+      </p>
+    );
 
   return (
     <section className="grid gap-4">
-      {/* DATOS DEL CLIENTE Y EQUIPO EN PRESUPUESTO */}
+      <div className="flex items-center gap-2">
+        <button className="btn" onClick={() => setSeleccionadaId(undefined)}>
+          ← Volver a la lista
+        </button>
+        <div className="text-sm opacity-70">
+          {(orden.codigo || orden.codigo_orden || orden.id.slice(0, 8)) +
+            " · " +
+            (orden.estado || "—")}
+        </div>
+      </div>
+
       <div className="card">
         <div className="card-body grid sm:grid-cols-2 gap-4">
-          <div className="grid gap-2">
-            <h2 className="text-lg font-semibold">Cliente</h2>
-            <p><strong>Nombre:</strong> {cliente.nombre}</p>
-            <p><strong>Teléfono:</strong> {cliente.telefono}</p>
+          <div>
+            <h2 className="font-semibold">Cliente</h2>
+            <p>{cliente?.nombre || "—"}</p>
+            <p>{cliente?.telefono || "—"}</p>
+            {"email" in (cliente || {}) && cliente?.email && <p>{cliente.email}</p>}
           </div>
-          <div className="grid gap-2">
-            <h2 className="text-lg font-semibold">Equipo</h2>
-            <p><strong>Aparato:</strong> {equipo.categoria}</p>
-            <p><strong>Marca/Modelo:</strong> {equipo.marca} {equipo.modelo}</p>
-            <p><strong>Daño:</strong> {equipo.descripcion}</p>
+          <div>
+            <h2 className="font-semibold">Equipo</h2>
+            <p>
+              {(equipo?.aparato || equipo?.categoria || equipo || "—") +
+                " " +
+                (equipo?.marca || "") +
+                " " +
+                (equipo?.modelo || "")}
+            </p>
+            <p>{equipo?.descripcion || "—"}</p>
           </div>
         </div>
       </div>
-      {/* ------------------------------------------- */}
 
-      <div className="card"><div className="card-body grid gap-4">
-        {/* Título de la sección de cálculo */}
-        <h2 className="text-lg font-semibold">Cálculo de Presupuesto para: {equipo.categoria}</h2>
-        
-        <hr className="my-2"/>
-        
-        {/* Horas de Reparación */}
-        <div className="grid sm:grid-cols-4 gap-3 items-end">
-          <Field label={"Tarifa €/h"}>
-            <input type="number" className="input" value={tarifa} onChange={e=>setTarifa(parseFloat(e.target.value)||0)}/>
-          </Field>
-          <Field label={"Horas de Reparación (Manual)*"}>
-            <input 
-                type="number" 
-                step="0.5" 
-                min="0"
-                className="input" 
-                value={horasReparacion || ''} 
-                onChange={e=>setHorasReparacion(Number(e.target.value) || 0)}
-            />
-          </Field>
-          <div className="col-span-2">
-            <button className="btn w-full" onClick={generarHorasEstimadas}>
-              Generar Horas Estimadas ({estimarHoras(equipo.categoria, equipo.descripcion)}h)
-            </button>
-          </div>
-          <div className="sm:col-span-4 text-xs opacity-70">
-            Costo de mano de obra calculado: **{manoObra.toFixed(2)} €**
-          </div>
-        </div>
-
-        <hr className="my-2"/>
-
-        {/* CAMPOS NUEVOS: Precio Nuevo / Segunda Mano */}
-        <div className="grid sm:grid-cols-2 gap-3">
-          <Field label={"Precio del aparato nuevo (€)"}>
-            <input 
-                type="number" 
-                min="0"
-                className="input" 
-                value={precioNuevo} 
-                onChange={e=>setPrecioNuevo(e.target.value === '' ? '' : Number(e.target.value))}
-            />
-          </Field>
-          <Field label={`Precio de segunda mano (Tope: ${Math.round(topeSegundaManoFactor * 100)}% del valor - €)`}>
-            <input 
-                type="number" 
-                min="0"
-                className="input" 
-                value={precioSegundaMano} 
-                onChange={e=>setPrecioSegundaMano(e.target.value === '' ? '' : Number(e.target.value))}
-            />
-          </Field>
-        </div>
-
-        <hr className="my-2"/>
-
-        {/* Piezas */}
-        <h3 className="text-md font-semibold mt-2">Piezas necesarias (Margen {Math.round(margenPiezas * 100 - 100)}%)</h3>
-        {piezas.map((p, i) => (
-          <div key={i} className="grid sm:grid-cols-[2fr_1fr_auto] gap-3 items-end">
-            <Field label={`Pieza ${i + 1} - Nombre*`}>
-              <input className="input" value={p.nombre} onChange={e=>updatePieza(i,{nombre:e.target.value})}/>
-            </Field>
-            <Field label={`Precio sin IVA (€)*`}>
-              <input type="number" min="0" step="0.01" className="input" 
-                value={p.precio || ''} 
-                onChange={e=>updatePieza(i,{precio:Number(e.target.value)})}
+      <div className="card">
+        <div className="card-body grid gap-3">
+          <div className="grid sm:grid-cols-2 gap-3">
+            <label>
+              Tarifa €/h
+              <input
+                type="number"
+                className="input"
+                value={tarifa}
+                onChange={(e) => setTarifa(Number(e.target.value) || 0)}
               />
-            </Field>
-            {piezas.length > 0 ? (
-              <button className="btn" onClick={() => removePieza(i)}>Quitar</button>
-            ) : (
-              <div className="h-10 w-16"></div> 
-            )}
+            </label>
+            <label>
+              Horas
+              <input
+                type="number"
+                step="0.5"
+                className="input"
+                value={horas || ""}
+                onChange={(e) => setHoras(Number(e.target.value) || 0)}
+              />
+            </label>
           </div>
-        ))}
-        <div>
-            <button className="btn" onClick={addPieza}>➕ Añadir otra pieza</button>
-        </div>
 
-        <div className="grid sm:grid-cols-3 md:grid-cols-4 gap-3 mt-4">
-            <KPI label="Costo Piezas (s/ IVA)" value={costoPiezasBruto}/>
-            <KPI label="Costo Piezas (c/ Margen)" value={costoPiezasConMargen}/>
-            <KPI label="Mano de Obra" value={manoObra}/>
-            <KPI label="Subtotal (Piezas + M.O.)" value={subtotal} strong/>
-        </div>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <label>
+              Precio nuevo (€)
+              <input
+                type="number"
+                className="input"
+                value={precioNuevo}
+                onChange={(e) => setPrecioNuevo(e.target.value === "" ? "" : Number(e.target.value))}
+              />
+            </label>
+            <label>
+              Precio segunda mano (€)
+              <input
+                type="number"
+                className="input"
+                value={precioSegundaMano}
+                onChange={(e) =>
+                  setPrecioSegundaMano(
+                    e.target.value === "" ? "" : Number(e.target.value)
+                  )
+                }
+              />
+            </label>
+          </div>
 
-        <hr className="my-2"/>
+          <h3 className="font-semibold mt-3">Piezas</h3>
+          {piezas.map((p, i) => (
+            <div key={i} className="grid sm:grid-cols-[2fr_1fr_auto] gap-2">
+              <input
+                className="input"
+                placeholder="Nombre"
+                value={p.nombre}
+                onChange={(e) =>
+                  setPiezas((prev) =>
+                    prev.map((x, j) =>
+                      j === i ? { ...x, nombre: e.target.value } : x
+                    )
+                  )
+                }
+              />
+              <input
+                type="number"
+                className="input"
+                placeholder="Precio"
+                value={p.precio || ""}
+                onChange={(e) =>
+                  setPiezas((prev) =>
+                    prev.map((x, j) =>
+                      j === i
+                        ? { ...x, precio: Number(e.target.value) || 0 }
+                        : x
+                    )
+                  )
+                }
+              />
+              <button
+                className="btn"
+                onClick={() =>
+                  setPiezas((prev) => prev.filter((_, j) => j !== i))
+                }
+              >
+                Quitar
+              </button>
+            </div>
+          ))}
+          <button
+            className="btn mt-2"
+            onClick={() =>
+              setPiezas((prev) => [...prev, { nombre: "", precio: 0 }])
+            }
+          >
+            Añadir pieza
+          </button>
 
-        {/* Acciones y Resultado */}
-        <div className="flex gap-4 items-center justify-between mt-4">
-            <button 
-                className="btn btn-primary" 
-                onClick={calcularPresupuesto}
-                disabled={disableCalculate}
-            >
-                Calcular Presupuesto Aproximado
-            </button>
-            
-            {presupuestoAprox !== null && (
-                <div className="text-xl font-bold p-3 bg-indigo-100 text-indigo-800 rounded-lg shadow-lg">
-                    Total Presupuesto: {presupuestoAprox.toFixed(2)} €
-                    {(precioSegundaMano && presupuestoAprox === Number(precioSegundaMano) * topeSegundaManoFactor) && (
-                        <p className="text-xs font-normal mt-1 text-indigo-600">
-                            (Limitado por tope de Segunda Mano)
-                        </p>
-                    )}
-                </div>
-            )}
+          <button className="btn btn-primary mt-4" onClick={calcular}>
+            Calcular
+          </button>
+
+          {presupuesto !== null && (
+            <div className="text-lg font-bold mt-2">
+              Total: {presupuesto.toFixed(2)} €
+            </div>
+          )}
         </div>
-      </div></div>
+      </div>
     </section>
-  )
+  );
 }

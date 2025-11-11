@@ -7,8 +7,9 @@ import { Informes } from "./modules/informes/Informes";
 import { Presupuesto } from "./modules/presupuesto/Presupuesto";
 import { ListaPresupuestos } from "./modules/informes/ListaPresupuestos";
 import { Historial } from "./modules/historial/Historial";
+import { Componentes } from "./modules/componentes/Componentes";
 
-// Tipos de pestaña
+
 export type Tab =
   | "ordenes"
   | "registro"
@@ -16,43 +17,38 @@ export type Tab =
   | "informes"
   | "presupuesto"
   | "listapresupuestos"
-  | "historial";
+  | "historial"
+  | "componentes";
 
 export function App() {
   const [tab, setTab] = useState<Tab>("ordenes");
   const [selId, setSelId] = useState<string | null>(null);
 
-  // Navegar desde Registro al Detalle de Reparación
   const openDetailFromRegistro = useCallback((ordenId: string) => {
     setSelId(ordenId);
     setTab("reparacion");
   }, []);
 
-  // Abrir Detalle desde la lista de Órdenes
   const openDetailFromOrdenes = useCallback((ordenId: string) => {
     setSelId(ordenId);
     setTab("reparacion");
   }, []);
 
-  // Volver a la lista de Órdenes
   const goBackToOrdenes = useCallback(() => {
-    setSelId(null);
     setTab("ordenes");
   }, []);
 
   const navigateToPresupuesto = useCallback(() => {
+    if (!selId) return;
     setTab("presupuesto");
-  }, []);
+  }, [selId]);
 
   return (
     <Layout tab={tab} onTab={setTab}>
-      {/* 1. REGISTRO DE NUEVA ORDEN */}
       {tab === "registro" && <Registro onCreated={openDetailFromRegistro} />}
 
-      {/* 2. LISTA DE ÓRDENES */}
       {tab === "ordenes" && <Ordenes onOpen={openDetailFromOrdenes} />}
 
-      {/* 3. DETALLE DE REPARACIÓN */}
       {tab === "reparacion" && (
         <div className="grid grid-cols-1 gap-4">
           {selId ? (
@@ -63,10 +59,10 @@ export function App() {
               >
                 ← Volver a Órdenes
               </button>
-              <DetalleOrden ordenId={selId} onNavigateToBudget={navigateToPresupuesto} />
-
-
-
+              <DetalleOrden
+                ordenId={selId}
+                onNavigateToBudget={navigateToPresupuesto}
+              />
             </>
           ) : (
             <div className="card">
@@ -78,15 +74,16 @@ export function App() {
         </div>
       )}
 
-      {/* 4. INFORMES */}
       {tab === "informes" && <Informes />}
 
-      {/* 5. PRESUPUESTOS */}
-      {tab === "presupuesto" && <Presupuesto />}
+      {/* ✅ ahora Presupuesto recibe la orden seleccionada */}
+      {tab === "presupuesto" && <Presupuesto ordenId={selId} />}
+
       {tab === "listapresupuestos" && <ListaPresupuestos />}
 
-      {/* 6. HISTORIAL */}
       {tab === "historial" && <Historial />}
+	  {tab === "componentes" && <Componentes />}
+
     </Layout>
   );
 }

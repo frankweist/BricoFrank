@@ -1,10 +1,8 @@
-﻿import { useEffect, useState } from 'react';
-// 🔑 CORRECCIÓN: Se añaden los iconos necesarios
-import { Moon, Sun, ClipboardList, Calculator, Hammer, TrendingUp, Wrench, BookOpenText } from 'lucide-react'; 
+﻿﻿import { useEffect, useState } from 'react';
+import { Moon, Sun, ClipboardList, Calculator, Hammer, TrendingUp, Wrench, BookOpenText, Package } from 'lucide-react'; 
 import type { Tab } from '../../App';
 import { onSyncState, getSyncState } from '../../sync/autosync'; 
 
-// Definición de las NavItem que coinciden con el tipo Tab en App.tsx
 const navItems = [
   { tab: 'registro', label: 'Registro', icon: BookOpenText },
   { tab: 'ordenes', label: 'Órdenes', icon: ClipboardList },
@@ -12,6 +10,7 @@ const navItems = [
   { tab: 'reparacion', label: 'Reparación', icon: Wrench },
   { tab: 'historial', label: 'Historial', icon: Hammer },
   { tab: 'informes', label: 'Informes', icon: TrendingUp },
+  { tab: 'componentes', label: 'Componentes', icon: Package },
 ] as const; 
 
 export function Layout({
@@ -26,7 +25,6 @@ export function Layout({
     onSyncState(handleSyncStateChange);
   }, []);
 
-  // Lógica de cambio de tema:
   useEffect(() => {
     const root = document.documentElement;
     localStorage.setItem('gr_dark', dark ? '1' : '0');
@@ -62,10 +60,8 @@ export function Layout({
 
       {/* Contenido Principal */}
       <div className="flex flex-col h-screen overflow-y-auto">
-        {/* Header (Mobile/Tablet) */}
         <header className="sticky top-0 z-10 bg-white dark:bg-neutral-950 border-b border-neutral-200 dark:border-neutral-800">
           <div className="max-w-6xl mx-auto p-2 lg:p-0">
-            {/* Nav de pestañas (Mobile/Tablet) */}
             <div className="flex gap-2 p-2 overflow-x-auto lg:hidden justify-between">
               {navItems.map(item => (
                 <button 
@@ -76,13 +72,11 @@ export function Layout({
                   {item.label}
                 </button>
               ))}
-              {/* Botón de Tema (Móvil) */}
               <button title="Tema" className="btn btn-ghost flex-shrink-0" onClick={() => setDark(v => !v)}>
                 {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
               </button>
             </div>
           </div>
-          {/* Barra de estado de sincronización (visible en pantallas pequeñas) */}
           <div className="lg:hidden p-2 text-center text-xs opacity-70 border-t border-neutral-200 dark:border-neutral-800">
               Sincronización: {syncState}
           </div>
@@ -96,7 +90,6 @@ export function Layout({
   );
 }
 
-// Componente NavItem
 function NavItem({
   icon: Icon, label, active, onClick
 }: { icon: any; label: string; active?: boolean; onClick: () => void }) {
