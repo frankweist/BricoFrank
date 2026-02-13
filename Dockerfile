@@ -1,10 +1,10 @@
 # Etapa de construcción
 FROM node:18-alpine AS build
 WORKDIR /app
-COPY package.json yarn.lock ./
-RUN yarn install
+COPY package.json package-lock.json ./
+RUN npm install --legacy-peer-deps
 COPY . .
-RUN yarn build
+RUN npm run build
 
 # Etapa de producción
 FROM nginx:1.25.3-alpine AS production
