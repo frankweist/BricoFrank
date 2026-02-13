@@ -66,7 +66,7 @@ export function ImportadorDoc() {
       await db.transaction("rw", db.componentes, async () => {
         for (const i of items) {
           await db.componentes.add({
-            id: uuid(),
+            id: i.id, // Reutilizar el id generado en el análisis
             tipo: i.tipo,
             nombre: i.nombre,
             cantidad: i.cantidad,
@@ -95,14 +95,14 @@ export function ImportadorDoc() {
     <div className="card p-4 grid gap-3">
       <h3 className="font-semibold text-lg">Importar desde documento</h3>
       <textarea
-        className="border p-2 h-32 bg-white text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100"
+        className="textarea textarea-bordered h-32"
         placeholder="Pega aquí las líneas del documento (por ejemplo: R10 10k 1/4W, C5 100n 50V...)"
         value={texto}
         onChange={(e) => setTexto(e.target.value)}
       />
       <div className="flex gap-2">
         <button
-          className="bg-black text-white px-3 py-2"
+          className="btn btn-neutral"
           onClick={analizar}
           disabled={!texto.trim()}
         >
@@ -110,7 +110,7 @@ export function ImportadorDoc() {
         </button>
         {items.length > 0 && (
           <button
-            className="bg-green-700 text-white px-3 py-2"
+            className="btn btn-success"
             onClick={guardarTodos}
             disabled={guardando}
           >
@@ -135,14 +135,14 @@ export function ImportadorDoc() {
                 <tr key={i.id} className="border-t hover:bg-neutral-50 dark:hover:bg-neutral-700">
                   <td className="p-2">
                     <input
-                      className="border p-1 w-full bg-white dark:bg-neutral-800 dark:text-neutral-100"
+                      className="input input-bordered input-sm w-full"
                       value={i.tipo}
                       onChange={(e) => actualizarCampo(i.id, "tipo", e.target.value)}
                     />
                   </td>
                   <td className="p-2">
                     <input
-                      className="border p-1 w-full bg-white dark:bg-neutral-800 dark:text-neutral-100"
+                      className="input input-bordered input-sm w-full"
                       value={i.nombre}
                       onChange={(e) => actualizarCampo(i.id, "nombre", e.target.value)}
                     />
@@ -151,16 +151,16 @@ export function ImportadorDoc() {
                     <input
                       type="number"
                       min={1}
-                      className="border p-1 w-full bg-white dark:bg-neutral-800 dark:text-neutral-100"
+                      className="input input-bordered input-sm w-full"
                       value={i.cantidad}
                       onChange={(e) =>
-                        actualizarCampo(i.id, "cantidad", parseInt(e.target.value))
+                        actualizarCampo(i.id, "cantidad", parseInt(e.target.value, 10) || 1)
                       }
                     />
                   </td>
                   <td className="p-2">
                     <input
-                      className="border p-1 w-full bg-white dark:bg-neutral-800 dark:text-neutral-100"
+                      className="input input-bordered input-sm w-full"
                       value={i.ubicacion}
                       onChange={(e) =>
                         actualizarCampo(i.id, "ubicacion", e.target.value)

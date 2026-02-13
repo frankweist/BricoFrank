@@ -165,11 +165,8 @@ export function Componentes() {
   const [resultAPI, setResultAPI] = useState<ResultadoMouser[]>([]);
   const [buscandoAPI, setBuscandoAPI] = useState(false);
 
-  const componentes = useLiveQuery(async () => await db.componentes.toArray(), []);
-  const equivalencias = useLiveQuery(
-    async () => await db.equivalencias?.toArray?.() ?? [],
-    []
-  ) as Equivalencia[] | undefined;
+  const componentes = useLiveQuery(() => db.componentes.toArray(), []);
+  const equivalencias = useLiveQuery(() => db.equivalencias.toArray(), []);
 
   /* ---------- Filtrado local ---------- */
 
@@ -272,7 +269,7 @@ export function Componentes() {
       notas: notasEq,
       fecha: new Date().toISOString(),
     };
-    await db.equivalencias.add(nueva as any);
+    await db.equivalencias.add(nueva);
     setOrigenEq("");
     setSustitutoEq("");
     setNotasEq("");
@@ -319,7 +316,7 @@ export function Componentes() {
       <div className="card p-4 grid gap-3">
         <h2 className="text-xl font-semibold">Buscar en inventario</h2>
         <input
-          className="border p-2 bg-white text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100"
+          className="input input-bordered w-full"
           placeholder="Buscar por nombre, tipo, valor (10k, 100n...), ubicación o notas"
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -351,7 +348,7 @@ export function Componentes() {
                     <td className="p-2">
                       {enEdicion ? (
                         <input
-                          className="border p-1 w-full bg-white dark:bg-neutral-800 dark:text-neutral-100"
+                          className="input input-bordered input-sm w-full"
                           value={editNombre}
                           onChange={(e) => setEditNombre(e.target.value)}
                         />
@@ -364,10 +361,10 @@ export function Componentes() {
                         <input
                           type="number"
                           min={0}
-                          className="border p-1 w-full bg-white dark:bg-neutral-800 dark:text-neutral-100"
+                          className="input input-bordered input-sm w-full"
                           value={editCantidad}
                           onChange={(e) =>
-                            setEditCantidad(parseInt(e.target.value) || 0)
+                            setEditCantidad(parseInt(e.target.value, 10) || 0)
                           }
                         />
                       ) : (
@@ -377,7 +374,7 @@ export function Componentes() {
                     <td className="p-2 w-32">
                       {enEdicion ? (
                         <input
-                          className="border p-1 w-full bg-white dark:bg-neutral-800 dark:text-neutral-100"
+                          className="input input-bordered input-sm w-full"
                           value={editUbicacion}
                           onChange={(e) => setEditUbicacion(e.target.value)}
                         />
@@ -388,7 +385,7 @@ export function Componentes() {
                     <td className="p-2">
                       {enEdicion ? (
                         <input
-                          className="border p-1 w-full bg-white dark:bg-neutral-800 dark:text-neutral-100"
+                          className="input input-bordered input-sm w-full"
                           value={editNotas}
                           onChange={(e) => setEditNotas(e.target.value)}
                         />
@@ -400,13 +397,13 @@ export function Componentes() {
                       {enEdicion ? (
                         <>
                           <button
-                            className="text-sm px-2 py-1 bg-green-700 text-white"
+                            className="btn btn-success btn-sm"
                             onClick={guardarEdicion}
                           >
                             Guardar
                           </button>
                           <button
-                            className="text-sm px-2 py-1 bg-neutral-500 text-white"
+                            className="btn btn-ghost btn-sm"
                             onClick={() => setEditId(null)}
                           >
                             Cancelar
@@ -415,13 +412,13 @@ export function Componentes() {
                       ) : (
                         <>
                           <button
-                            className="text-sm px-2 py-1 bg-blue-600 text-white"
+                            className="btn btn-info btn-sm"
                             onClick={() => iniciarEdicion(c)}
                           >
                             Editar
                           </button>
                           <button
-                            className="text-sm px-2 py-1 bg-red-700 text-white"
+                            className="btn btn-error btn-sm"
                             onClick={() => borrarComponente(c.id)}
                           >
                             Borrar
@@ -442,7 +439,7 @@ export function Componentes() {
         <h3 className="font-semibold">Añadir componente al inventario</h3>
         <div className="grid sm:grid-cols-2 gap-2">
           <select
-            className="border p-2 bg-white text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100"
+            className="select select-bordered"
             value={tipo}
             onChange={(e) => setTipo(e.target.value)}
           >
@@ -451,35 +448,35 @@ export function Componentes() {
             ))}
           </select>
           <input
-            className="border p-2 bg-white text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100"
+            className="input input-bordered"
             placeholder="Nombre / valor (ej: 10k 1/4W, BC547, 100n 50V)"
             value={nombre}
             onChange={(e) => setNombre(e.target.value)}
           />
           <input
-            className="border p-2 bg-white text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100"
+            className="input input-bordered"
             type="number"
             min={0}
             value={cantidad}
             onChange={(e) =>
-              setCantidad(parseInt(e.target.value) || 0)
+              setCantidad(parseInt(e.target.value, 10) || 0)
             }
           />
           <input
-            className="border p-2 bg-white text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100"
+            className="input input-bordered"
             placeholder="Ubicación (cajón, caja, etc.)"
             value={ubicacion}
             onChange={(e) => setUbicacion(e.target.value)}
           />
         </div>
         <textarea
-          className="border p-2 mt-2 bg-white text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100"
+          className="textarea textarea-bordered mt-2"
           placeholder="Notas (proveedor, referencia, observaciones...)"
           value={notas}
           onChange={(e) => setNotas(e.target.value)}
         />
         <button
-          className="bg-black text-white p-2 mt-2"
+          className="btn btn-neutral mt-2"
           onClick={agregarComponente}
         >
           Añadir
@@ -491,13 +488,13 @@ export function Componentes() {
         <h3 className="font-semibold">Buscar equivalentes en Mouser</h3>
         <div className="flex flex-col sm:flex-row gap-2">
           <input
-            className="border p-2 flex-1 bg-white text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100"
+            className="input input-bordered flex-1"
             placeholder="Código o referencia (ej: BC547, LM7805...)"
             value={qMouser}
             onChange={(e) => setQMouser(e.target.value)}
           />
           <button
-            className="bg-black text-white px-4 py-2"
+            className="btn btn-neutral"
             onClick={buscarEnMouser}
             disabled={buscandoAPI}
           >
@@ -530,6 +527,7 @@ export function Componentes() {
                       <a
                         href={r.productUrl}
                         target="_blank"
+                        rel="noreferrer"
                         className="text-blue-600 dark:text-blue-400 underline"
                       >
                         Ver
@@ -537,7 +535,7 @@ export function Componentes() {
                     </td>
                     <td className="p-2">
                       <button
-                        className="text-sm px-2 py-1 bg-green-700 text-white"
+                        className="btn btn-success btn-sm"
                         onClick={() => añadirDesdeMouser(r)}
                       >
                         Añadir al inventario
@@ -556,26 +554,26 @@ export function Componentes() {
         <h3 className="font-semibold">Registrar equivalencia local</h3>
         <div className="grid sm:grid-cols-3 gap-2">
           <input
-            className="border p-2 bg-white text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100"
+            className="input input-bordered"
             placeholder="Componente original"
             value={origenEq}
             onChange={(e) => setOrigenEq(e.target.value)}
           />
           <input
-            className="border p-2 bg-white text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100"
+            className="input input-bordered"
             placeholder="Sustituto"
             value={sustitutoEq}
             onChange={(e) => setSustitutoEq(e.target.value)}
           />
           <input
-            className="border p-2 bg-white text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100"
+            className="input input-bordered"
             placeholder="Notas (opcional)"
             value={notasEq}
             onChange={(e) => setNotasEq(e.target.value)}
           />
         </div>
         <button
-          className="bg-black text-white p-2 mt-2"
+          className="btn btn-neutral mt-2"
           onClick={agregarEquivalencia}
         >
           Añadir equivalencia

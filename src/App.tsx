@@ -1,4 +1,4 @@
-﻿import { useState, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { Layout } from "./modules/app/Layout";
 import { Ordenes } from "./modules/ordenes/Ordenes";
 import { Registro } from "./modules/registro/Registro";
@@ -27,21 +27,21 @@ export function App() {
   const openDetailFromRegistro = useCallback((ordenId: string) => {
     setSelId(ordenId);
     setTab("reparacion");
-  }, []);
+  }, [setSelId, setTab]);
 
   const openDetailFromOrdenes = useCallback((ordenId: string) => {
     setSelId(ordenId);
     setTab("reparacion");
-  }, []);
+  }, [setSelId, setTab]);
 
   const goBackToOrdenes = useCallback(() => {
     setTab("ordenes");
-  }, []);
+  }, [setTab]);
 
   const navigateToPresupuesto = useCallback(() => {
     if (!selId) return;
     setTab("presupuesto");
-  }, [selId]);
+  }, [selId, setTab]);
 
   return (
     <Layout tab={tab} onTab={setTab}>

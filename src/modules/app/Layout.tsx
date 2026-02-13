@@ -1,5 +1,5 @@
-﻿﻿import { useEffect, useState } from 'react';
-import { Moon, Sun, ClipboardList, Calculator, Hammer, TrendingUp, Wrench, BookOpenText, Package } from 'lucide-react'; 
+import { useEffect, useState } from 'react';
+import { Moon, Sun, ClipboardList, Calculator, Hammer, TrendingUp, Wrench, BookOpenText, Package, LucideIcon } from 'lucide-react'; 
 import type { Tab } from '../../App';
 import { onSyncState, getSyncState } from '../../sync/autosync'; 
 
@@ -92,7 +92,7 @@ export function Layout({
 
 function NavItem({
   icon: Icon, label, active, onClick
-}: { icon: any; label: string; active?: boolean; onClick: () => void }) {
+}: { icon: LucideIcon; label: string; active?: boolean; onClick: () => void }) {
   return (
     <button
       onClick={onClick}

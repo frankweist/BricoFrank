@@ -1,4 +1,4 @@
-﻿# Gestor de Reparaciones â€” BricoFrank
+﻿# Gestor de Reparaciones BricoFrank
 
 SPA con React + TypeScript + Vite, persistencia local con IndexedDB (Dexie) y UI con Tailwind.
 

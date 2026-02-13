@@ -6,6 +6,14 @@
 const API_URL = "https://api.mouser.com/api/v1/search/partnumber";
 const API_KEY = import.meta.env.VITE_MOUSER_KEY;
 
+type MouserResult = {
+    ManufacturerPartNumber: string;
+    MouserPartNumber: string;
+    Manufacturer: { Name: string };
+    Description: string;
+    ProductDetailUrl: string;
+}
+
 /**
  * Busca componentes o equivalentes usando la API de Mouser.
  * @param query Código o referencia (MPN, p.ej. "BC547")
@@ -28,10 +36,10 @@ export async function buscarSustitutos(query: string) {
   });
 
   if (!res.ok) throw new Error(`Error HTTP ${res.status}`);
-  const data = await res.json();
+  const data: { SearchResults?: { Parts: MouserResult[] } } = await res.json();
 
   const results = data?.SearchResults?.Parts || [];
-  return results.map((p: any) => ({
+  return results.map((p: MouserResult) => ({
     name: p.ManufacturerPartNumber || "Sin nombre",
     mpn: p.MouserPartNumber || "N/A",
     manufacturer: p.Manufacturer?.Name || "Desconocido",

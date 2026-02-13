@@ -106,13 +106,13 @@ export function Identificador() {
       <h3 className="text-lg font-semibold">Identificador de componentes</h3>
       <div className="flex flex-col sm:flex-row gap-2">
         <input
-          className="border p-2 flex-1 bg-white text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100"
+          className="input input-bordered flex-1"
           placeholder="Código o serigrafía del componente (ej: BC547, LM317, IRF540N, 10k)"
           value={codigo}
           onChange={(e) => setCodigo(e.target.value)}
         />
         <button
-          className="bg-black text-white px-4 py-2"
+          className="btn btn-neutral"
           onClick={identificar}
           disabled={buscando}
         >
@@ -146,6 +146,7 @@ export function Identificador() {
                     <a
                       href={datasheet}
                       target="_blank"
+                      rel="noreferrer"
                       className="text-blue-600 dark:text-blue-400 underline"
                     >
                       Ver hoja de datos
@@ -156,7 +157,7 @@ export function Identificador() {
             </tbody>
           </table>
           <button
-            className="bg-green-700 text-white px-4 py-2 mt-3"
+            className="btn btn-success mt-3"
             onClick={guardar}
           >
             Guardar en inventario

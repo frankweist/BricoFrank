@@ -1,4 +1,4 @@
-﻿import Dexie, { Table } from 'dexie'
+import Dexie, { Table } from 'dexie'
 import type { Cliente, Equipo, Orden, Evento, Pieza, Adjunto } from '../domain/types'
 
 export class GRDB extends Dexie {
@@ -39,12 +39,11 @@ export class GRDB extends Dexie {
       ordenes: 'id, codigo, equipoId, estado, creada, actualizada, cliente, telefono, equipo', // <--- Nuevas columnas indexadas
       eventos: 'id, ordenId, fecha',
       piezas:  'id, ordenId, estado',
-      adjuntos:'id, ordenId, fecha'
+      adjuntos:'id, ordenId, fecha',
+      componentes: 'id, tipo, nombre',
+      equivalencias: 'id, origen, sustituto',
     })
   }
 }
 
 export const db = new GRDB()
-
-;(window as any).db = db
-

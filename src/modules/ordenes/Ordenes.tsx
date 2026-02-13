@@ -78,32 +78,24 @@ export function Ordenes({ onOpen }: { onOpen: (id: string) => void }) {
   const [editando, setEditando] = useState<string | null>(null);
   const [form, setForm] = useState<Partial<OrdenRow & { estado: string }>>({});
 
-  // Leer órdenes desde db.ordenes, sin guiones por defecto
-  const allOrdenes = useLiveQuery(async () => {
-    const ordenes = await db.ordenes.toArray();
-    return ordenes.map((o: any) => ({
-      id: o.id,
-      codigo: o.codigo ?? "",
-      estado: o.estado ?? "",
-      cliente: o.cliente ?? "",
-      telefono: o.telefono ?? "",
-      equipo: o.equipo ?? "",
-      aparato: o.aparato ?? "",
-      marca: o.marca ?? "",
-      modelo: o.modelo ?? "",
-      numeroSerie: o.numeroSerie ?? "",
-      descripcion: o.descripcion ?? "",
-      creada: o.creada,
-      actualizada: o.actualizada,
-    })) as OrdenRow[];
-  }, []);
+  const allOrdenes = useLiveQuery(() => {
+    let query = db.ordenes.toCollection();
 
-  // Agrupar por cliente y ordenar por orden de llegada (creada asc)
+    if (desde) {
+      query = query.filter(o => new Date(o.creada).getTime() >= new Date(desde).getTime());
+    }
+    if (hasta) {
+      query = query.filter(o => new Date(o.creada).getTime() < new Date(hasta).getTime() + 86400000);
+    }
+
+    return query.toArray();
+  }, [desde, hasta]);
+
   const grupos = useMemo<GrupoCliente[]>(() => {
     if (!allOrdenes) return [];
     const gruposMap: Record<string, GrupoCliente> = {};
 
-    allOrdenes.forEach((o) => {
+    allOrdenes.forEach((o: any) => {
       const key = `${o.cliente}-${o.telefono}`;
       if (!gruposMap[key]) {
         gruposMap[key] = {
@@ -114,7 +106,7 @@ export function Ordenes({ onOpen }: { onOpen: (id: string) => void }) {
           ordenes: [],
         };
       }
-      gruposMap[key].ordenes.push(o);
+      gruposMap[key].ordenes.push(o as OrdenRow);
       gruposMap[key].totalOrdenes++;
     });
 
@@ -125,13 +117,6 @@ export function Ordenes({ onOpen }: { onOpen: (id: string) => void }) {
         const ordenesFiltradas = g.ordenes
           .filter((r) => {
             const matchesEstado = estado === "todos" || r.estado === estado;
-            const matchesDesde =
-              !desde ||
-              new Date(r.creada).getTime() >= new Date(desde).getTime();
-            const matchesHasta =
-              !hasta ||
-              new Date(r.creada).getTime() <
-                new Date(hasta).getTime() + 86400000;
             const aparatoBuscado = (r.aparato || r.equipo || "").toLowerCase();
             const matchesQuery =
               !t ||
@@ -139,11 +124,8 @@ export function Ordenes({ onOpen }: { onOpen: (id: string) => void }) {
               (r.telefono || "").includes(t) ||
               aparatoBuscado.includes(t) ||
               (r.codigo || "").toLowerCase().includes(t);
-            return (
-              matchesEstado && matchesDesde && matchesHasta && matchesQuery
-            );
+            return matchesEstado && matchesQuery;
           })
-          // Orden de llegada dentro de cada cliente
           .sort(
             (a, b) =>
               new Date(a.creada).getTime() - new Date(b.creada).getTime()
@@ -157,7 +139,6 @@ export function Ordenes({ onOpen }: { onOpen: (id: string) => void }) {
       })
       .filter((g) => g.totalOrdenes > 0);
 
-    // Orden de llegada entre clientes: por la primera orden de cada grupo
     gruposArray.sort((a, b) => {
       const fa = a.ordenes.length
         ? new Date(a.ordenes[0].creada).getTime()
@@ -169,7 +150,7 @@ export function Ordenes({ onOpen }: { onOpen: (id: string) => void }) {
     });
 
     return gruposArray;
-  }, [allOrdenes, q, estado, desde, hasta]);
+  }, [allOrdenes, q, estado]);
 
   async function eliminarOrden(id: string) {
     if (!window.confirm("¿Eliminar esta orden definitivamente?")) return;
@@ -261,7 +242,7 @@ export function Ordenes({ onOpen }: { onOpen: (id: string) => void }) {
               <select
                 className="input w-full"
                 value={estado}
-                onChange={(e) => setEstado(e.target.value as any)}
+                onChange={(e) => setEstado(e.target.value as typeof estado)}
               >
                 <option value="todos">Todos</option>
                 <option value="recepcion">Recepción</option>
@@ -272,6 +253,26 @@ export function Ordenes({ onOpen }: { onOpen: (id: string) => void }) {
                 <option value="entregado">Entregado</option>
               </select>
             </label>
+            <div className="grid sm:grid-cols-2 gap-3">
+              <label>
+                <span className="text-sm text-neutral-500">Desde</span>
+                <input
+                  type="date"
+                  className="input w-full"
+                  value={desde}
+                  onChange={(e) => setDesde(e.target.value)}
+                />
+              </label>
+              <label>
+                <span className="text-sm text-neutral-500">Hasta</span>
+                <input
+                  type="date"
+                  className="input w-full"
+                  value={hasta}
+                  onChange={(e) => setHasta(e.target.value)}
+                />
+              </label>
+            </div>
           </div>
           <div className="flex gap-2 justify-end pt-2">
             <button className="btn" onClick={exportarDatos}>
@@ -326,7 +327,7 @@ export function Ordenes({ onOpen }: { onOpen: (id: string) => void }) {
                   <td className="py-2 pr-3">{g.telefono}</td>
                   <td className="py-2 pr-3">{g.totalOrdenes} órdenes</td>
                   <td className="py-2 pr-3">
-                    {new Date(g.ordenes[0].actualizada).toLocaleString()}
+                    {g.ordenes.length > 0 && new Date(g.ordenes[0].actualizada).toLocaleString()}
                   </td>
                   <td className="py-2 pr-3"></td>
                 </tr>

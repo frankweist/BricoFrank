@@ -1,43 +1,14 @@
-import Dexie from 'dexie'
-import { supa } from "../data/supabase.ts";
+import { supa } from "../data/supabase";
 import { db } from "../data/db";
-
+import { BackupPayload } from "../data/backup";
+import { DBCoreChange } from "dexie";
 
 const ROW_ID = "2f647c2d-8b01-447a-8959-1e35520937a6";
 
 let syncState = "idle";
-let syncTimer: any = null;
+let syncTimer: ReturnType<typeof setInterval> | null = null;
 let syncInitialized = false;
-let pushQueueTimer: any = null;
-
-// --- NUEVO: indicador visual de sincronización ---
-function showSyncInfo(type: "push" | "pull" | "skip", date: Date) {
-  const id = "sync-toast";
-  let el = document.getElementById(id);
-  if (!el) {
-    el = document.createElement("div");
-    el.id = id;
-    el.style.position = "fixed";
-    el.style.bottom = "8px";
-    el.style.right = "8px";
-    el.style.zIndex = "9999";
-    el.style.padding = "6px 10px";
-    el.style.borderRadius = "8px";
-    el.style.fontSize = "12px";
-    el.style.background = "#1e293b";
-    el.style.color = "white";
-    el.style.opacity = "0.9";
-    document.body.appendChild(el);
-  }
-  const txt =
-    type === "push"
-      ? "Subida (Push)"
-      : type === "pull"
-      ? "Descarga (Pull)"
-      : "Sin cambios";
-  el.textContent = `Última sincronización: ${date.toLocaleString()} [${txt}]`;
-}
-// -------------------------------------------------
+let pushQueueTimer: ReturnType<typeof setTimeout> | null = null;
 
 export function getSyncState() {
   return syncState;
@@ -79,15 +50,11 @@ export async function forceSync() {
   }
 }
 
-// ----------------------------------------------------
-// PROTEGIDO: Subida condicional a Supabase
-// ----------------------------------------------------
 export async function syncPush() {
   try {
     setSyncState("syncing");
     console.log("📤 Evaluando si es necesario subir a Supabase...");
 
-    // Leer datos locales completos
     const clientes = await db.clientes.toArray();
     const equipos = await db.equipos.toArray();
     const ordenes = await db.ordenes.toArray();
@@ -97,7 +64,6 @@ export async function syncPush() {
       `📦 Preparando backup local: ${clientes.length} clientes, ${equipos.length} equipos, ${ordenes.length} órdenes`
     );
 
-    // --- Leer backup remoto actual ---
     const { data: remoteData, error: remoteErr } = await supa
       .from("backups")
       .select("payload, fecha")
@@ -106,18 +72,15 @@ export async function syncPush() {
 
     if (remoteErr && remoteErr.code !== "PGRST116") throw remoteErr;
 
-    const remoteBackup = remoteData?.payload;
+    const remoteBackup = remoteData?.payload as BackupPayload | undefined;
     const remoteOrdenes = remoteBackup?.ordenes?.length || 0;
     const remoteFecha = remoteData?.fecha ? new Date(remoteData.fecha) : null;
 
-    const localFecha = new Date(
-      Math.max(
-        ...ordenes.map(o => new Date(o.actualizada || o.creada || 0).getTime()),
-        Date.now()
-      )
-    );
+    const maxLocalTimestamp = ordenes.length > 0 ? Math.max(
+      ...ordenes.map(o => new Date(o.actualizada || o.creada || 0).getTime())
+    ) : 0;
+    const localFecha = new Date(Math.max(maxLocalTimestamp, Date.now()));
 
-    // --- Protección: no sobrescribir si la local parece incompleta ---
     if (remoteOrdenes > ordenes.length) {
       console.warn(
         `⛔ Evitado: la base local (${ordenes.length}) tiene menos órdenes que la remota (${remoteOrdenes}). No se sube.`
@@ -126,7 +89,6 @@ export async function syncPush() {
       return;
     }
 
-    // --- Comprobar si el remoto es más reciente ---
     if (remoteFecha && remoteFecha > localFecha) {
       console.warn(
         "⛔ Evitado: el backup remoto es más reciente. No se sube nada."
@@ -135,9 +97,8 @@ export async function syncPush() {
       return;
     }
 
-    // --- Subir el backup ---
     console.log("✅ Subiendo backup más reciente a Supabase...");
-    const payload = {
+    const payload: BackupPayload = {
       clientes,
       equipos,
       ordenes,
@@ -155,17 +116,12 @@ export async function syncPush() {
 
     console.log("✅ Backup subido correctamente.");
     setSyncState("ok");
-  } catch (err: any) {
-    console.error("❌ Error en syncPush:", err.message);
+  } catch (err: unknown) {
+    console.error("❌ Error en syncPush:", (err as Error).message);
     setSyncState("error");
   }
 }
 
-
-
-// ----------------------------------------------------
-// DESCARGA PROTEGIDA DESDE SUPABASE
-// ----------------------------------------------------
 export async function syncPull(force: boolean = false) {
   try {
     setSyncState("syncing");
@@ -179,7 +135,7 @@ export async function syncPull(force: boolean = false) {
 
     if (error && error.code !== "PGRST116") throw error;
 
-    const backupData = data?.payload as any;
+    const backupData = data?.payload as BackupPayload | undefined;
     const remoteDate = data?.fecha ? new Date(data.fecha) : null;
 
     if (!backupData) {
@@ -188,16 +144,14 @@ export async function syncPull(force: boolean = false) {
       return;
     }
 
-    // Datos locales
     const localOrdenCount = await db.ordenes.count();
     const latestLocalOrder = await db.ordenes.orderBy("actualizada").last();
     const localDate = latestLocalOrder
       ? new Date(latestLocalOrder.actualizada || latestLocalOrder.creada)
       : new Date(0);
 
-    // --- Comparación corregida ---
     const delta = remoteDate && localDate ? (remoteDate.getTime() - localDate.getTime()) : 0;
-    const remoteIsNewer = delta > 5000; // más de 5 segundos de diferencia se considera más nuevo
+    const remoteIsNewer = delta > 5000;
 
     if (localOrdenCount === 0 || force || remoteIsNewer) {
       console.log(
@@ -218,30 +172,24 @@ export async function syncPull(force: boolean = false) {
         await db.ordenes.clear();
         await db.adjuntos.clear();
 
-        await db.clientes.bulkAdd(clientes || []);
-        await db.equipos.bulkAdd(equipos || []);
-        await db.ordenes.bulkAdd(ordenes || []);
-        await db.adjuntos.bulkAdd(adjuntos || []);
+        if(clientes) await db.clientes.bulkAdd(clientes);
+        if(equipos) await db.equipos.bulkAdd(equipos);
+        if(ordenes) await db.ordenes.bulkAdd(ordenes);
+        if(adjuntos) await db.adjuntos.bulkAdd(adjuntos);
       });
 
       console.log("✅ Datos restaurados desde Supabase.");
-      showSyncInfo?.("pull", new Date());
     } else {
       console.log("Datos locales más recientes o iguales. No se realiza pull.");
-      showSyncInfo?.("skip", new Date());
     }
 
     setSyncState("ok");
-  } catch (err: any) {
-    console.error("❌ Error en syncPull:", err.message);
+  } catch (err: unknown) {
+    console.error("❌ Error en syncPull:", (err as Error).message);
     setSyncState("error");
   }
 }
 
-
-// ----------------------------------------------------
-// SINCRONIZACIÓN AUTOMÁTICA
-// ----------------------------------------------------
 export function initAutoSync(intervalMs = 120000) {
   if (syncInitialized) return;
 
@@ -249,7 +197,7 @@ export function initAutoSync(intervalMs = 120000) {
   console.log("⚙️ AutoSync activado cada", intervalMs / 1000, "segundos");
 
   try {
-    db.on("changes", (changes) => {
+    db.on("changes", (changes: DBCoreChange[]) => {
       if (!navigator.onLine) return;
 
       const relevant = changes.some(
@@ -275,8 +223,3 @@ export function initAutoSync(intervalMs = 120000) {
 
   syncInitialized = true;
 }
-
-// ----------------------------------------------------
-// EXPONER FUNCIÓN A CONSOLA
-// ----------------------------------------------------
-;(window as any).forceSync = forceSync;
